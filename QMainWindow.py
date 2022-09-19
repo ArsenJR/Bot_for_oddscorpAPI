@@ -1,8 +1,14 @@
 from ForkScanerClass import *
 import ForkScanerClass
-
+from QDialodToLogin import *
+import QDialodToLogin
+from GGBetDriver import *
+from PinnacleDriver import *
 
 class Window(QMainWindow, QObject, object):
+
+    signal_to_logIn_ggbet = pyqtSignal(list)
+    signal_to_logIn_pinnacle = pyqtSignal(list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -41,6 +47,56 @@ class Window(QMainWindow, QObject, object):
         self.btn_scaner_start.setGeometry(QtCore.QRect(70, 510, 200, 30))
         self.btn_scaner_start.setObjectName("btn_start_scan")
         self.btn_scaner_start.clicked.connect(self.scanerStartInThread)
+
+        # кнопка открывабщая новое окно (для Log in)
+        self.btn_bk_logIn = QtWidgets.QPushButton('Авторизоваться', self)
+        self.btn_bk_logIn.setGeometry(QtCore.QRect(70, 310, 200, 30))
+        self.btn_bk_logIn.setObjectName("btn_bk_logIn")
+        self.btn_bk_logIn.clicked.connect(self.open_logIn_dialog)
+
+        # открываем автоматизированные вкладки с бк
+        self.open_ggbet_driver()
+        self.open_pinnacle_driver()
+
+    def open_pinnacle_driver(self):
+        self.pinnacle_thread = QThread()
+        self.pinnacle_driver = pinnacleDriver()
+        self.pinnacle_driver.moveToThread(self.pinnacle_thread)
+        self.pinnacle_thread.started.connect(self.pinnacle_driver.doWebDriver)
+        self.signal_to_logIn_pinnacle.connect(self.pinnacle_driver.log_in)
+
+        self.pinnacle_thread.start()
+
+
+    def open_ggbet_driver(self):
+        self.ggbet_thread = QThread()
+        self.ggbet_driver = ggbetDriver()
+        self.ggbet_driver.moveToThread(self.ggbet_thread)
+        self.ggbet_thread.started.connect(self.ggbet_driver.doWebDriver)
+        self.signal_to_logIn_ggbet.connect(self.ggbet_driver.log_in)
+
+        self.ggbet_thread.start()
+
+    def open_logIn_dialog(self):
+        self.scanerEnd()
+        ggbet_dialog = DialogToLogIn("GGbet")
+        if ggbet_dialog.exec():
+            ggbet_login = QDialodToLogin.Login
+            ggbet_password = QDialodToLogin.Password
+            pinnacle_dialog = DialogToLogIn("PINNACLE")
+            if pinnacle_dialog.exec():
+                pinnacle_login = QDialodToLogin.Login
+                pinnacle_password = QDialodToLogin.Password
+                # авторизуемся в конторах
+                self.signal_to_logIn_ggbet.emit([ggbet_login, ggbet_password])
+                self.signal_to_logIn_pinnacle.emit([pinnacle_login, pinnacle_password])
+
+                self.btn_bk_logIn.setEnabled(False)
+        else:
+            print("Cancel!")
+
+
+
 
     def reportProgress(self, n):
         fork_now, fork_alive_now  = n
