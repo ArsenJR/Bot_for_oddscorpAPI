@@ -4,6 +4,7 @@ from QDialodToLogin import *
 import QDialodToLogin
 from GGBetDriver import *
 from PinnacleDriver import *
+from GetToOddscorp import *
 
 class Window(QMainWindow, QObject, object):
 
@@ -35,6 +36,12 @@ class Window(QMainWindow, QObject, object):
         self.listView.setModel(self.model)
         self.listView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
 
+        # кнопка открывабщая новое окно (для Log in)
+        self.btn_bk_logIn = QtWidgets.QPushButton('Авторизоваться', self)
+        self.btn_bk_logIn.setGeometry(QtCore.QRect(70, 310, 200, 30))
+        self.btn_bk_logIn.setObjectName("btn_bk_logIn")
+        self.btn_bk_logIn.clicked.connect(self.open_logIn_dialog)
+
         # создаем кнопку окончания работы сканера
         self.btn_scaner_end = QtWidgets.QPushButton('Закончить сканирование', self)
         self.btn_scaner_end.setGeometry((QtCore.QRect(70, 410, 200, 30)))
@@ -49,14 +56,41 @@ class Window(QMainWindow, QObject, object):
         self.btn_scaner_start.clicked.connect(self.scanerStartInThread)
 
         # кнопка открывабщая новое окно (для Log in)
-        self.btn_bk_logIn = QtWidgets.QPushButton('Авторизоваться', self)
-        self.btn_bk_logIn.setGeometry(QtCore.QRect(70, 310, 200, 30))
-        self.btn_bk_logIn.setObjectName("btn_bk_logIn")
-        self.btn_bk_logIn.clicked.connect(self.open_logIn_dialog)
+        self.btn_do_bet = QtWidgets.QPushButton('Сделать ставку', self)
+        self.btn_do_bet.setGeometry(QtCore.QRect(70, 610, 200, 30))
+        self.btn_do_bet.setObjectName("btn_do_bet")
+        self.btn_do_bet.clicked.connect(self.do_bet)
 
         # открываем автоматизированные вкладки с бк
         self.open_ggbet_driver()
         self.open_pinnacle_driver()
+
+    def do_bet(self):
+        name = None
+        indef_of_selected_item = self.listView.selectionModel().selectedIndexes()
+        if indef_of_selected_item:
+            text_selected_items = self.model.itemFromIndex(indef_of_selected_item[0]).text()
+            text_selected_items = " | ".join(text_selected_items.split(' | ')[:-1])
+            name = text_selected_items
+            print(name)
+        else:
+            print('Выберите ставку')
+
+        if name:
+            fork_now, fork_now_key, fork_now_dict = get_fork_to_bet()
+            try:
+                for i in range(len(fork_now)):
+                    if name == fork_now[i]:
+                        fork_key = fork_now_key[i]
+                        break
+                if fork_key:
+                    for fork in fork_now_dict:
+                        if fork['fork_id'] == fork_key:
+                            fork_for_bet = fork
+                            print(fork_for_bet)
+            except:
+                print("Вилка пропала")
+
 
     def open_pinnacle_driver(self):
         self.pinnacle_thread = QThread()
