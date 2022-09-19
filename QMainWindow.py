@@ -1,52 +1,9 @@
-import sys
-import time
-from time import sleep
-from PyQt5 import QtCore, QtWidgets, QtGui
-from PyQt5.QtCore import QItemSelectionModel
-from PyQt5.QtCore import Qt
-from PyQt5.QtCore import QObject, QThread, pyqtSignal
-import json
-import requests
-from operator import itemgetter
-from PyQt5.QtWidgets import (
-    QApplication,
-    QLabel,
-    QMainWindow,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
-
-CHEK = True
-
-def get_fork_info():
-    ODSCORP_API = 'http://api.oddscp.com:8111/forks?bk2_name=gg_bet,pinnacle&min_fi=0,1&token=0d483739b670f1a2b38feeca99f5eddc'
-    r = requests.get(ODSCORP_API)
-    forks = json.loads(r.text)
-    forks = sorted(forks, key=itemgetter('alive_sec'), reverse=True)
-    list_fork_info = []
-    list_fork_alive = []
-    for fork in forks:
-        list_fork_info.append(fork['sport'] + " | " + fork['BK1_game'] + " | " + fork['bet_type'])
-        list_fork_alive.append(fork['alive_sec'])
-    return [list_fork_info, list_fork_alive]
-
-class Worker(QObject):
-    finished = pyqtSignal()
-    progress = pyqtSignal(list)
-
-    def run(self):
-        """Long-running task."""
-        while(CHEK):
-            sleep(1)
-            self.progress.emit(get_fork_info())
-            if CHEK == False:
-                self.finished.emit()
-        self.finished.emit()
+from ForkScanerClass import *
+import ForkScanerClass
 
 
+class Window(QMainWindow, QObject, object):
 
-class Window(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.clicksCount = 0
@@ -85,11 +42,6 @@ class Window(QMainWindow):
         self.btn_scaner_start.setObjectName("btn_start_scan")
         self.btn_scaner_start.clicked.connect(self.scanerStartInThread)
 
-    def scanerEnd(self):
-        global CHEK
-        CHEK = False
-
-
     def reportProgress(self, n):
         fork_now, fork_alive_now  = n
 
@@ -115,33 +67,26 @@ class Window(QMainWindow):
             sm = self.listView.selectionModel()
             sm.select(index, QItemSelectionModel.Select)
 
-
-
-
-
-
-
-
+    def scanerEnd(self):
+        ForkScanerClass.CHEK = False
 
 
     def scanerStartInThread(self):
-        global CHEK
-        CHEK = True
+        ForkScanerClass.CHEK = True
         # Step 2: Create a QThread object
         self.thread = QThread()
         # Step 3: Create a worker object
-        self.worker = Worker()
+        self.scanner = ForkScaner()
         # Step 4: Move worker to the thread
-        self.worker.moveToThread(self.thread)
+        self.scanner.moveToThread(self.thread)
         # Step 5: Connect signals and slots
-        self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.started.connect(self.scanner.get_forks_from_oddscorp)
+        self.scanner.finished.connect(self.thread.quit)
+        self.scanner.finished.connect(self.scanner.deleteLater)
         self.thread.finished.connect(self.thread.deleteLater)
-        self.worker.progress.connect(self.reportProgress)
+        self.scanner.progress.connect(self.reportProgress)
         # Step 6: Start the thread
         self.thread.start()
-
         # Final resets
         self.btn_scaner_start.setEnabled(False)
         self.btn_scaner_end.setEnabled(True)
@@ -151,10 +96,9 @@ class Window(QMainWindow):
         self.thread.finished.connect(
             lambda: self.btn_scaner_end.setEnabled(False)
         )
-
-
-
-
+        self.thread.finished.connect(
+            lambda: self.model.removeRows(0, self.model.rowCount())
+        )
 
 
 
