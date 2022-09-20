@@ -10,6 +10,8 @@ class Window(QMainWindow, QObject, object):
 
     signal_to_logIn_ggbet = pyqtSignal(list)
     signal_to_logIn_pinnacle = pyqtSignal(list)
+    signal_to_send_bet_parameter_to_ggbet = pyqtSignal(dict)
+    segnal_to_send_bet_parameter_to_pinnacle = pyqtSignal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -59,6 +61,7 @@ class Window(QMainWindow, QObject, object):
         self.btn_do_bet = QtWidgets.QPushButton('Сделать ставку', self)
         self.btn_do_bet.setGeometry(QtCore.QRect(70, 610, 200, 30))
         self.btn_do_bet.setObjectName("btn_do_bet")
+        #self.btn_do_bet.setEnabled(False)
         self.btn_do_bet.clicked.connect(self.do_bet)
 
         # открываем автоматизированные вкладки с бк
@@ -87,7 +90,7 @@ class Window(QMainWindow, QObject, object):
                     for fork in fork_now_dict:
                         if fork['fork_id'] == fork_key:
                             fork_for_bet = fork
-                            print(fork_for_bet)
+                            self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet)
             except:
                 print("Вилка пропала")
 
@@ -99,6 +102,7 @@ class Window(QMainWindow, QObject, object):
         self.pinnacle_thread.started.connect(self.pinnacle_driver.doWebDriver)
         self.signal_to_logIn_pinnacle.connect(self.pinnacle_driver.log_in)
 
+
         self.pinnacle_thread.start()
 
 
@@ -108,6 +112,7 @@ class Window(QMainWindow, QObject, object):
         self.ggbet_driver.moveToThread(self.ggbet_thread)
         self.ggbet_thread.started.connect(self.ggbet_driver.doWebDriver)
         self.signal_to_logIn_ggbet.connect(self.ggbet_driver.log_in)
+        self.signal_to_send_bet_parameter_to_ggbet.connect(self.ggbet_driver.do_bet)
 
         self.ggbet_thread.start()
 
@@ -126,6 +131,7 @@ class Window(QMainWindow, QObject, object):
                 self.signal_to_logIn_pinnacle.emit([pinnacle_login, pinnacle_password])
 
                 self.btn_bk_logIn.setEnabled(False)
+                self.btn_do_bet.setEnabled(True)
         else:
             print("Cancel!")
 
