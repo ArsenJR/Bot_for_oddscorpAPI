@@ -11,7 +11,7 @@ class Window(QMainWindow, QObject, object):
     signal_to_logIn_ggbet = pyqtSignal(list)
     signal_to_logIn_pinnacle = pyqtSignal(list)
     signal_to_send_bet_parameter_to_ggbet = pyqtSignal(dict)
-    segnal_to_send_bet_parameter_to_pinnacle = pyqtSignal(dict)
+    signal_to_send_bet_parameter_to_pinnacle = pyqtSignal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -91,6 +91,7 @@ class Window(QMainWindow, QObject, object):
                         if fork['fork_id'] == fork_key:
                             fork_for_bet = fork
                             self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet)
+                            self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet)
             except:
                 print("Вилка пропала")
 
@@ -101,6 +102,7 @@ class Window(QMainWindow, QObject, object):
         self.pinnacle_driver.moveToThread(self.pinnacle_thread)
         self.pinnacle_thread.started.connect(self.pinnacle_driver.doWebDriver)
         self.signal_to_logIn_pinnacle.connect(self.pinnacle_driver.log_in)
+        self.signal_to_send_bet_parameter_to_pinnacle.connect(self.pinnacle_driver.do_bet)
 
 
         self.pinnacle_thread.start()
