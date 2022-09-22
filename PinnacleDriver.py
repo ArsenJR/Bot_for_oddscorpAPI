@@ -67,10 +67,10 @@ class pinnacleDriver(QObject):
         self.bets_field = self.get_field_by_name(bet_type, bet_name)
         print('Получили поле')
         print(self.bets_field)
-        if bet_type == 'MAP_WIN' or bet_type == 'WIN':
+        if bet_type == 'SET_WIN' or bet_type == 'WIN':
             self.do_win_bet(bet_name, self.bets_field)
             print('Сделал')
-        if bet_type == 'TOTALS':
+        if bet_type == 'SETS_TOTALS':
             self.do_total_bet(bet_name, self.bets_field)
             print('Сделал')
 
@@ -125,12 +125,12 @@ class pinnacleDriver(QObject):
     def pinnacle_get_field_name(self, bet_type, bet):
         fields_name_dict ={
             'WIN':'Денежная линия – Матч',
-            'MAP_1__WIN':'Денежная линия – Карта 1',
-            'MAP_2__WIN':'Денежная линия – Карта 2',
-            'MAP_3__WIN':'Денежная линия – Карта 3',
-            'MAP_4__WIN':'Денежная линия – Карта 4',
-            'MAP_5__WIN':'Денежная линия – Карта 5',
-            'TOTALS':'Тотал – Матч',
+            'SET_01__WIN':'Денежная линия – Карта 1',
+            'SET_02__WIN':'Денежная линия – Карта 2',
+            'SET_03__WIN':'Денежная линия – Карта 3',
+            'SET_04__WIN':'Денежная линия – Карта 4',
+            'SET_05__WIN':'Денежная линия – Карта 5',
+            'SETS_TOTALS':'Тотал – Матч',
             'MAP_1__TOTALS':'Тотал – Карта 1',
             'MAP_2__TOTALS':'Тотал – Карта 2',
             'MAP_3__TOTALS':'Тотал – Карта 3',
@@ -152,7 +152,7 @@ class pinnacleDriver(QObject):
 
         transform_bet_type = bet_type.replace('__', ' ').replace('_', ' ').split(' ')
         transform_bet = bet.replace('__', ' ').replace('_', ' ').replace('(', ' ').replace(')', '').split(' ')
-        if transform_bet_type[0] == 'MAP':
+        if transform_bet_type[0] == 'SET':
             bet_key = transform_bet_type[0]+ '_' +transform_bet[1]+ '__' + ('_'.join(transform_bet_type[1:]))
         else:
             bet_key = bet_type
@@ -180,6 +180,7 @@ class pinnacleDriver(QObject):
         # если это победа 1ого или 2ого (или весь матч, или за часть)
         # если за часть, то поле fields_with_our_bet будет со ставками на победу в выбранном периоде
         # получаем имя команды, на которую будем ставить
+
         if bet == 'WIN__P1':
             command_name = self.driver.find_elements(By.CLASS_NAME, class_name)[0].text
         elif bet == 'WIN__P2':
@@ -198,10 +199,11 @@ class pinnacleDriver(QObject):
             button_image_more.click()
         except:
             pass
-        if BK_bet[0] == 'T':
+        if BK_bet[0] == 'S':
             BK_bet_name = self.transform_total_bet(BK_bet)
         button_with_our_bet = fields_with_our_bet.find_element(By.XPATH,
                                                                './/button[@title="{}"]'.format(BK_bet_name))
+
         button_with_our_bet.click()
 
     def transform_total_bet(self, bet):
@@ -210,10 +212,10 @@ class pinnacleDriver(QObject):
         bet_to_transform = bet_to_transform.replace('__', ' ').replace('_', ' ').replace('(', ' ').replace(')',
                                                                                                            '').split(
             ' ')
-        if bet_to_transform[1] == 'UNDER':
-            bet_name = 'Меньше {}'.format(bet_to_transform[2])
-        if bet_to_transform[1] == 'OVER':
-            bet_name = 'Больше {}'.format(bet_to_transform[2])
+        if bet_to_transform[2] == 'UNDER':
+            bet_name = 'Меньше {}'.format(bet_to_transform[3])
+        if bet_to_transform[2] == 'OVER':
+            bet_name = 'Больше {}'.format(bet_to_transform[3])
         return bet_name
 
     def do_handicap_bet(self, BK_bet, fields_with_our_bet):
