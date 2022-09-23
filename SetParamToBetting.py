@@ -1,6 +1,6 @@
 from AllLibraries import *
 
-class DialogToLogIn(QDialog):
+class DialogSettings(QDialog):
     def __init__(self,parent=None):
         super().__init__(parent)
 
@@ -95,6 +95,7 @@ class DialogToLogIn(QDialog):
             print(f'Тип последовательности проставления {how_do_bet}')
             print(f'Тип ограничений по сумме ставки {limit_type}, максимальная сумма {limit_sum}')
             print(f'Автоматическое проставление {auto_bet}')
+            self.accept()
         else:
             print('Введите сумму')
 
@@ -103,6 +104,6 @@ class DialogToLogIn(QDialog):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    win = DialogToLogIn()
+    win = DialogSettings()
     win.show()
     sys.exit(app.exec())

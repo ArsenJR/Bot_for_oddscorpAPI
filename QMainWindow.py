@@ -2,9 +2,12 @@ from ForkScanerClass import *
 import ForkScanerClass
 from QDialodToLogin import *
 import QDialodToLogin
+from SetParamToBetting import *
+import SetParamToBetting
 from GGBetDriver import *
 from PinnacleDriver import *
 from GetToOddscorp import *
+
 
 class Window(QMainWindow, QObject, object):
 
@@ -38,6 +41,12 @@ class Window(QMainWindow, QObject, object):
         self.listView.setModel(self.model)
         self.listView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
 
+        # кнопка открывабщая окно с настройками
+        self.btn_set_settings = QtWidgets.QPushButton('Настройки', self)
+        self.btn_set_settings.setGeometry(QtCore.QRect(70, 210, 200, 30))
+        self.btn_set_settings.setObjectName("btn_set_settings")
+        self.btn_set_settings.clicked.connect(self.open_settings_dialog)
+
         # кнопка открывабщая новое окно (для Log in)
         self.btn_bk_logIn = QtWidgets.QPushButton('Авторизоваться', self)
         self.btn_bk_logIn.setGeometry(QtCore.QRect(70, 310, 200, 30))
@@ -67,6 +76,15 @@ class Window(QMainWindow, QObject, object):
         # открываем автоматизированные вкладки с бк
         self.open_ggbet_driver()
         self.open_pinnacle_driver()
+
+    def open_settings_dialog(self):
+        self.scanerEnd()
+        dialog = DialogSettings(self)
+        if dialog.exec():
+            print('Данные получены!')
+        else:
+            print('Cansel!')
+
 
     def do_bet(self):
         name = None
