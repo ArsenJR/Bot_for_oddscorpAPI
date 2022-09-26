@@ -78,12 +78,10 @@ class pinnacleDriver(QObject):
             self.do_handicap_bet(bet_name, self.bets_field)
             print('Сделал')
 
-        self.betting(100)
+        self.betting(int(self.bet_parameter['pinnacle_sum_bet']))
 
         time.sleep(3)
 
-          #  print(222)
-           # self.pinnacle_do_win_bet(self.bet_name, pinnacle_bets_field)
 
 
 

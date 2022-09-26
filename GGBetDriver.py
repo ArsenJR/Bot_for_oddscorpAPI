@@ -54,6 +54,7 @@ class ggbetDriver(QObject):
             self.bet_name = self.bet_parameter['BK2_bet']
             self.bet_markers = json.loads(self.bet_parameter['BK2_market_meta'])
         print('Получил')
+        print(self.bet_parameter['ggbet_sum_bet'])
         self.bet_link = self.get_match_link(self.bk_link, self.bet_href)
         self.bet_title = self.bet_markers['title_name']
         self.bet_name = self.bet_markers['bet_name']
@@ -116,7 +117,8 @@ class ggbetDriver(QObject):
 
         # вводим сумму
         try:
-            bet_sum = 100
+            bet_sum = int(self.bet_parameter['ggbet_sum_bet'])
+            print(bet_sum)
             input_sum_lable = self.driver.find_element(By.XPATH, '//input[@class = "{}"]'.format(key_input_sum_class))
             input_sum_lable.clear()
             input_sum_lable.send_keys(bet_sum)

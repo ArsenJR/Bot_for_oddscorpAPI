@@ -14,5 +14,6 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import QItemSelectionModel, Qt, QObject, QThread, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget, QDialog, QPushButton
 
+import math
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)

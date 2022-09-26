@@ -1,3 +1,5 @@
+import math
+
 from ForkScanerClass import *
 import ForkScanerClass
 from QDialodToLogin import *
@@ -82,8 +84,30 @@ class Window(QMainWindow, QObject, object):
         dialog = DialogSettings(self)
         if dialog.exec():
             print('Данные получены!')
+            self.limit_type = SetParamToBetting.limit_type
+            self.limit_sum = SetParamToBetting.limit_sum
         else:
             print('Cansel!')
+
+    def bet_calc(self, dict):
+        if dict['BK1_name'] == 'gg_bet':
+            ggbet_cf = dict['BK1_cf']
+            pinnacle_cf = dict['BK2_cf']
+        elif dict['BK2_name'] == 'gg_bet':
+            ggbet_cf = dict['BK2_cf']
+            pinnacle_cf = dict['BK1_cf']
+
+        total_prob = 1 / ggbet_cf + 1 / pinnacle_cf
+
+        if self.limit_type == 1:
+            ggbet_sum_bet = math.ceil(1 / ggbet_cf / total_prob * float(self.limit_sum))
+            pinnacle_sum_bet = math.ceil(1 / pinnacle_cf / total_prob * float(self.limit_sum))
+            dict['ggbet_sum_bet'] = ggbet_sum_bet
+            dict['pinnacle_sum_bet'] = pinnacle_sum_bet
+        elif self.limit_type == '2': # макс ставка на ggbet
+            pass
+        return dict
+
 
 
     def do_bet(self):
@@ -108,8 +132,12 @@ class Window(QMainWindow, QObject, object):
                     for fork in fork_now_dict:
                         if fork['fork_id'] == fork_key:
                             fork_for_bet = fork
-                            self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet)
-                            self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet)
+                            fork_for_bet_with_sum = fork
+                            print('Good')
+                            fork_for_bet_with_sum = self.bet_calc(fork_for_bet)
+                            print(fork_for_bet_with_sum)
+                            self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet_with_sum)
+                            #self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet_with_sum)
             except:
                 print("Вилка пропала")
 

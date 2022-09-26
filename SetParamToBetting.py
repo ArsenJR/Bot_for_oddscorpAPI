@@ -1,5 +1,9 @@
 from AllLibraries import *
 
+auto_bet = False
+how_do_bet = 1
+limit_type = 1
+limit_sum = 0
 class DialogSettings(QDialog):
     def __init__(self,parent=None):
         super().__init__(parent)
@@ -65,6 +69,7 @@ class DialogSettings(QDialog):
 
     def get_params(self):
 
+        global how_do_bet
         how_do_bet = 1
         if self.r_btn_synch.isChecked():
             how_do_bet = 1
@@ -73,6 +78,7 @@ class DialogSettings(QDialog):
         elif self.r_btn_first_pin.isChecked():
             how_do_bet = 3
 
+        global limit_sum, limit_type
         limit_type = 1
         limit_sum = 0
         if self.r_btn_total_sum.isChecked():
@@ -85,6 +91,7 @@ class DialogSettings(QDialog):
             limit_type = 3
             limit_sum = self.sum_line.text()
 
+        global auto_bet
         auto_bet = False
         if self.r_btn_yes.isChecked():
             auto_bet = True
