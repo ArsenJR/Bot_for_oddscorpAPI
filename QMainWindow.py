@@ -104,8 +104,16 @@ class Window(QMainWindow, QObject, object):
             pinnacle_sum_bet = math.ceil(1 / pinnacle_cf / total_prob * float(self.limit_sum))
             dict['ggbet_sum_bet'] = ggbet_sum_bet
             dict['pinnacle_sum_bet'] = pinnacle_sum_bet
-        elif self.limit_type == '2': # макс ставка на ggbet
-            pass
+        elif self.limit_type == 2: # макс ставка на ggbet
+            ggbet_sum_bet = float(self.limit_sum)
+            pinnacle_sum_bet = (ggbet_sum_bet * ggbet_cf) / pinnacle_cf
+            dict['ggbet_sum_bet'] = math.ceil(ggbet_sum_bet)
+            dict['pinnacle_sum_bet'] = math.ceil(pinnacle_sum_bet)
+        elif self.limit_type == 3: # макс ставка на pinnacle
+            pinnacle_sum_bet = float(self.limit_sum)
+            ggbet_sum_bet = (pinnacle_sum_bet * pinnacle_cf) / ggbet_cf
+            dict['ggbet_sum_bet'] = math.ceil(ggbet_sum_bet)
+            dict['pinnacle_sum_bet'] = math.ceil(pinnacle_sum_bet)
         return dict
 
 
@@ -137,7 +145,7 @@ class Window(QMainWindow, QObject, object):
                             fork_for_bet_with_sum = self.bet_calc(fork_for_bet)
                             print(fork_for_bet_with_sum)
                             self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet_with_sum)
-                            #self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet_with_sum)
+                            self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet_with_sum)
             except:
                 print("Вилка пропала")
 
