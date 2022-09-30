@@ -1,22 +1,26 @@
 from AllLibraries import *
 
+PINNACLE_PORT = ''
+PINNACLE_LINK = ''
+
+
 class pinnacleDriver(QObject):
 
     def doWebDriver(self):
-        self.driver = webdriver.Chrome()
-        self.bk_link = 'https://www.betonproxy.shop/ru/'
-        self.driver.get(self.bk_link)
-        self.driver.maximize_window()
-        time.sleep(3)
-        try:
-            # не нажимает, разобраться почему
-            key_button_accept_cookie = 'style_button__2cht5 style_fullWidth__tyxzD ellipsis style_medium__1Uf0e dead-center style_tertiary__1XC1Z style_button__3eTui'
-            button_accept_cookie = self.driver.find_element(By.XPATH,
-                                                            '//button[@class="{}"]'.format(key_button_accept_cookie))
-            button_accept_cookie.click()
-        except:
-            pass
 
+        self.profile_id = PINNACLE_PORT
+        self.bk_link = PINNACLE_LINK
+        self.port = get_debug_port(self.profile_id)
+        self.driver = get_webdriver(self.port)
+        self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+            "source": """
+                const newProto = navigator.__proto__
+                delete newProto.webdriver
+                navigator.__proto__ = newProto
+                """
+        })
+        self.driver.maximize_window()
+        self.driver.get(self.bk_link)
 
     def log_in(self, login_password):
         login = login_password[0]
@@ -297,3 +301,23 @@ class pinnacleDriver(QObject):
         input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
         input_sum_lable.clear()
         input_sum_lable.send_keys(bet_sum)
+
+
+def get_webdriver(port):
+    chrome_options = Options()
+    chrome_options.add_experimental_option('debuggerAddress', f'127.0.0.1:{port}')
+    # Change chrome driver path accordingly
+    driver = webdriver.Chrome(options=chrome_options)
+    return driver
+def get_debug_port(profile_id):
+    LOCAL_API = 'http://localhost:58888/api/profiles'
+    data = requests.post(
+        f'{LOCAL_API}/start', json={'uuid': profile_id, 'headless': False, 'debug_port': True}
+    ).json()
+    return data['debug_port']
+
+
+
+
+#driver = pinnacleDriver()
+#driver.doWebDriver()

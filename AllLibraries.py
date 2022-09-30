@@ -9,6 +9,7 @@ from operator import itemgetter
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
 
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import QItemSelectionModel, Qt, QObject, QThread, pyqtSignal

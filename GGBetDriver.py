@@ -1,12 +1,25 @@
 from AllLibraries import *
 
+GGBET_PORT = ''
+GGBET_LINK = ''
+
 class ggbetDriver(QObject):
 
     def doWebDriver(self):
-        self.driver = webdriver.Chrome()
-        self.bk_link = 'https://gg209.bet/ru/'
-        self.driver.get(self.bk_link)
+
+        self.profile_id = GGBET_PORT
+        self.bk_link = GGBET_LINK
+        self.port = get_debug_port(self.profile_id)
+        self.driver = get_webdriver(self.port)
+        self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+            "source": """
+                        const newProto = navigator.__proto__
+                        delete newProto.webdriver
+                        navigator.__proto__ = newProto
+                        """
+        })
         self.driver.maximize_window()
+        self.driver.get(self.bk_link)
 
         try:
             key_button_accept_cookie = 'cookie-agreement__button cookie-agreement__button--ok'
@@ -134,3 +147,18 @@ class ggbetDriver(QObject):
 
         print(self.bet_link)
         print(self.bet_markers['title_name'], " | ", self.bet_markers['bet_name'])
+
+
+
+def get_webdriver(port):
+    chrome_options = Options()
+    chrome_options.add_experimental_option('debuggerAddress', f'127.0.0.1:{port}')
+    # Change chrome driver path accordingly
+    driver = webdriver.Chrome(options=chrome_options)
+    return driver
+def get_debug_port(profile_id):
+    LOCAL_API = 'http://localhost:58888/api/profiles'
+    data = requests.post(
+        f'{LOCAL_API}/start', json={'uuid': profile_id, 'headless': False, 'debug_port': True}
+    ).json()
+    return data['debug_port']

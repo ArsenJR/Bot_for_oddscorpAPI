@@ -1,5 +1,7 @@
 import math
 
+import GGBetDriver
+import PinnacleDriver
 from ForkScanerClass import *
 import ForkScanerClass
 from QDialodToLogin import *
@@ -9,7 +11,8 @@ import SetParamToBetting
 from GGBetDriver import *
 from PinnacleDriver import *
 from GetToOddscorp import *
-
+from ChoosePort import *
+import ChoosePort
 
 class Window(QMainWindow, QObject, object):
 
@@ -43,6 +46,12 @@ class Window(QMainWindow, QObject, object):
         self.listView.setModel(self.model)
         self.listView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
 
+        # кнопка открывабщая окно с выбором порта
+        self.btn_set_port = QtWidgets.QPushButton('Выбор порта', self)
+        self.btn_set_port.setGeometry(QtCore.QRect(70, 110, 200, 30))
+        self.btn_set_port.setObjectName("btn_set_port")
+        self.btn_set_port.clicked.connect(self.open_port_choose_dialog)
+
         # кнопка открывабщая окно с настройками
         self.btn_set_settings = QtWidgets.QPushButton('Настройки', self)
         self.btn_set_settings.setGeometry(QtCore.QRect(70, 210, 200, 30))
@@ -68,7 +77,7 @@ class Window(QMainWindow, QObject, object):
         self.btn_scaner_start.setObjectName("btn_start_scan")
         self.btn_scaner_start.clicked.connect(self.scanerStartInThread)
 
-        # кнопка открывабщая новое окно (для Log in)
+        # кнопка "Сделать ставку"
         self.btn_do_bet = QtWidgets.QPushButton('Сделать ставку', self)
         self.btn_do_bet.setGeometry(QtCore.QRect(70, 610, 200, 30))
         self.btn_do_bet.setObjectName("btn_do_bet")
@@ -76,8 +85,31 @@ class Window(QMainWindow, QObject, object):
         self.btn_do_bet.clicked.connect(self.do_bet)
 
         # открываем автоматизированные вкладки с бк
-        self.open_ggbet_driver()
-        self.open_pinnacle_driver()
+        #self.open_ggbet_driver()
+        #self.open_pinnacle_driver()
+
+    def open_port_choose_dialog(self):
+        dialog = DialogToChoosePort(bk_name="ggbet", parent=self)
+        dialog.show()
+        if dialog.exec():
+            print('Данные по GGBet получены!')
+            ggbet_link = ChoosePort.LINK
+            ggbet_port = ChoosePort.PORT
+            dialog = DialogToChoosePort(bk_name="pinnacle", parent=self)
+            dialog.show()
+            if dialog.exec():
+                print('Данные по PINNACLE получены!')
+                pinnacle_link = ChoosePort.LINK
+                pinnacle_port = ChoosePort.PORT
+
+                GGBetDriver.GGBET_PORT = ggbet_port
+                GGBetDriver.GGBET_LINK = ggbet_link
+                PinnacleDriver.PINNACLE_PORT = pinnacle_port
+                PinnacleDriver.PINNACLE_LINK = pinnacle_link
+
+                if pinnacle_port != ggbet_port:
+                    self.open_pinnacle_driver()
+                    self.open_ggbet_driver()
 
     def open_settings_dialog(self):
         self.scanerEnd()
@@ -157,7 +189,6 @@ class Window(QMainWindow, QObject, object):
         self.pinnacle_thread.started.connect(self.pinnacle_driver.doWebDriver)
         self.signal_to_logIn_pinnacle.connect(self.pinnacle_driver.log_in)
         self.signal_to_send_bet_parameter_to_pinnacle.connect(self.pinnacle_driver.do_bet)
-
 
         self.pinnacle_thread.start()
 
