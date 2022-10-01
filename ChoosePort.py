@@ -62,7 +62,7 @@ class DialogToChoosePort(QDialog):
                 self.uuid_dict[el['title']] = el['uuid']
                 self.model.appendRow(QtGui.QStandardItem(el['title']))
 
-'''if __name__ == "__main__":
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     win1 = DialogToChoosePort("GGbet")
     win1.show()
@@ -79,4 +79,3 @@ class DialogToChoosePort(QDialog):
             print()
     sys.exit(app.exec())
 
-'''

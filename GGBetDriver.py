@@ -7,8 +7,10 @@ class ggbetDriver(QObject):
 
     def doWebDriver(self):
 
-        self.profile_id = GGBET_PORT
-        self.bk_link = GGBET_LINK
+        #self.profile_id = GGBET_PORT
+        self.profile_id = 'ef7feae4c45943c9b9285ddc3a152be0'
+        #self.bk_link = GGBET_LINK
+        self.bk_link = 'https://ggbet.name/ru/'
         self.port = get_debug_port(self.profile_id)
         self.driver = get_webdriver(self.port)
         self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
@@ -19,7 +21,11 @@ class ggbetDriver(QObject):
                         """
         })
         self.driver.maximize_window()
+        self.wait = WebDriverWait(self.driver, 500)
+
+        self.driver.maximize_window()
         self.driver.get(self.bk_link)
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
 
         try:
             key_button_accept_cookie = 'cookie-agreement__button cookie-agreement__button--ok'
@@ -35,7 +41,7 @@ class ggbetDriver(QObject):
         password = login_password[1]
 
         # переходим по ссылке авторизации
-        self.driver.get('https://gg209.bet/ru/live#!/auth/signin')
+        self.driver.get(self.bk_link + 'live#!/auth/signin')
 
         username_lable = self.driver.find_element(By.XPATH, '//input[@id="_username"]')
         password_lable = self.driver.find_element(By.XPATH, '//input[@id="_password"]')
@@ -74,7 +80,9 @@ class ggbetDriver(QObject):
 
         # открыли ссылку с матчем
         self.driver.get(self.bet_link)
-        time.sleep(2)
+
+        self.driver.execute_script(f"window.scrollTo(0, 0)")
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@data-label="Все"]')))
 
         # открываем все ставки
         self.driver.execute_script(f"window.scrollTo(0, 0)")
@@ -107,6 +115,7 @@ class ggbetDriver(QObject):
                 button_with_our_bet = self.fields_with_our_bet.find_element(By.XPATH,
                                                                        './/button[contains(@title, "{}")]'.format(
                                                                            self.bet_name))
+                self.cf = button_with_our_bet.text
                 button_with_our_bet.click()
                 print("Ставка сделана")
                 break
@@ -125,11 +134,26 @@ class ggbetDriver(QObject):
         except:
             pass
 
+
+        key_btns_sum = 'amount__stake___2tO04 amount__is-desktop___3tNIb'
+        time.sleep(2)
+        self.buttons_with_sum = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_btns_sum))
+        print(len(self.buttons_with_sum))
+        for btn in self.buttons_with_sum:
+            print(btn.text)
+            if btn.text == 'MAX':
+                print('True')
+                btn.click()
+                key_max_bet_value = 'totalRow__value___1Ygme'
+                self.bet_limit = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_max_bet_value))[0].text
+
+        print(f'Коэффициент {self.cf}')
+        print(f'Лимит на ставку {self.bet_limit.split(" ")[0]}')
+
         # ключ строки для ввода суммы ставки
         key_input_sum_class = 'input__input___tstQL'
-
         # вводим сумму
-        try:
+        """try:
             bet_sum = int(self.bet_parameter['ggbet_sum_bet'])
             print(bet_sum)
             input_sum_lable = self.driver.find_element(By.XPATH, '//input[@class = "{}"]'.format(key_input_sum_class))
@@ -143,7 +167,7 @@ class ggbetDriver(QObject):
             button_do_bet = self.driver.find_element(By.XPATH, '//div[@class = "{}"]'.format(key_button_do_bet))
             button_do_bet.click()
         except:
-            pass
+            pass"""
 
         print(self.bet_link)
         print(self.bet_markers['title_name'], " | ", self.bet_markers['bet_name'])
@@ -162,3 +186,27 @@ def get_debug_port(profile_id):
         f'{LOCAL_API}/start', json={'uuid': profile_id, 'headless': False, 'debug_port': True}
     ).json()
     return data['debug_port']
+
+
+
+driver = ggbetDriver()
+driver.doWebDriver()
+#driver.log_in(['+79771000530', 'Arsen2000!'])
+
+dict = {
+    'BK1_name' : 'pinnacle',
+    'BK1_href' : 'https://www.littlecheff.shop/ru/esports/league-of-legends-world-championship-play-in/loud-vs-fnatic/1560211152/',
+    'BK1_bet_type' : 'WIN',
+    'BK1_bet' : 'WIN__P2',
+    'BK1_cf': '1.22',
+    'BK2_name' : 'gg_bet',
+    'BK2_href' : 'https://gg209.bet/ru/esports/match/fnatic-vs-loud-01-10',
+    'BK2_bet_type' : 'WIN',
+    'BK2_bet' : 'WIN__P2',
+    'BK2_cf': '4.94',
+    'BK2_market_meta' : '{"title_name":"Победитель","bet_name":"LOUD"}',
+    'pinnacle_sum_bet' : '100',
+    'ggbet_sum_bet' : '100',
+}
+
+driver.do_bet(dict)

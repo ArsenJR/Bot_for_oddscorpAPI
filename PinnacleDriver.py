@@ -8,8 +8,11 @@ class pinnacleDriver(QObject):
 
     def doWebDriver(self):
 
-        self.profile_id = PINNACLE_PORT
-        self.bk_link = PINNACLE_LINK
+        #### ИЗМЕНИТЬ ПРИ РАБОТЕ ПРОГРАММЫ ####
+        #self.profile_id = PINNACLE_PORT
+        self.profile_id = '83772dc46c3e4caba2a0902455dd422c'
+        #self.bk_link = PINNACLE_LINK
+        self.bk_link = 'https://www.littlecheff.shop/ru/'
         self.port = get_debug_port(self.profile_id)
         self.driver = get_webdriver(self.port)
         self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
@@ -20,7 +23,15 @@ class pinnacleDriver(QObject):
                 """
         })
         self.driver.maximize_window()
+        self.wait = WebDriverWait(self.driver, 500)
         self.driver.get(self.bk_link)
+
+        key_element = 'style_selected__FPAJz undefined style_selected__FPAJz'
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@class="{}"]'.format(key_element))))
+
+
+
+
 
     def log_in(self, login_password):
         login = login_password[0]
@@ -42,12 +53,13 @@ class pinnacleDriver(QObject):
         password_lable.send_keys(password)
         time.sleep(1)
         password_lable.send_keys(Keys.ENTER)
+        self.wait.until(EC.visibility_of_element_located((By.ID, "all")))
 
 
     def do_bet(self, dict):
 
         self.bet_parameter = dict
-        print(self.bet_parameter)
+        print(self.bet_parameter['BK1_name'])
 
         if self.bet_parameter['BK1_name'] == 'pinnacle':
             bet_href = self.bet_parameter['BK1_href']
@@ -66,7 +78,10 @@ class pinnacleDriver(QObject):
         #bet_link = 'https://www.betonproxy.shop/ru/esports/csgo-esl-pro-league/liquid-vs-movistar-riders/1557069066'
 
         self.driver.get(bet_link)
-        time.sleep(2)
+
+        # дожидаемся прогрузки страницы
+        self.wait.until(EC.visibility_of_element_located((By.ID, "all")))
+
 
         self.bets_field = self.get_field_by_name(bet_type, bet_name)
         print('Получили поле')
@@ -82,11 +97,25 @@ class pinnacleDriver(QObject):
             self.do_handicap_bet(bet_name, self.bets_field)
             print('Сделал')
 
+
+        self.get_cf_and_bet_sum()
+
+        print(f'Коэффициент {self.cf}')
+        print(f'Лимит на ставку {self.bet_limit}')
         self.betting(int(self.bet_parameter['pinnacle_sum_bet']))
 
         time.sleep(3)
 
 
+
+    def get_cf_and_bet_sum(self):
+        key_cf_value = 'style_price__2KUeC betslipCardPrice'
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@class="{}"]'.format(key_cf_value))))
+        self.cf = self.driver.find_element(By.XPATH, '//div[@class="{}"]'.format(key_cf_value)).text
+
+        key_max_bet_sum = 'Betslip-StakeWinInput-MaxWagerLimit'
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum))))
+        self.bet_limit = self.driver.find_element(By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum)).text
 
 
 
@@ -321,3 +350,21 @@ def get_debug_port(profile_id):
 
 #driver = pinnacleDriver()
 #driver.doWebDriver()
+#driver.log_in(['KH1553462', '34DFdfg3'])
+
+dict = {
+    'BK1_name' : 'pinnacle',
+    'BK1_href' : 'https://www.littlecheff.shop/ru/esports/league-of-legends-world-championship-play-in/loud-vs-fnatic/1560211152/',
+    'BK1_bet_type' : 'WIN',
+    'BK1_bet' : 'WIN__P2',
+    'BK1_cf': '1.22',
+    'BK2_name' : 'gg_bet',
+    'BK2_href' : 'https://gg209.bet/ru/esports/match/fnatic-vs-loud-01-10',
+    'BK2_bet_type' : 'WIN',
+    'BK2_bet' : 'WIN__P2',
+    'BK2_cf': '4.94',
+    'BK2_market_meta' : '{"title_name":"Победитель","bet_name":"LOUD"}',
+    'pinnacle_sum_bet' : '100',
+}
+
+#driver.do_bet(dict)
