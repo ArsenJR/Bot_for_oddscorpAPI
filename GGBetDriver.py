@@ -4,7 +4,7 @@ GGBET_PORT = ''
 GGBET_LINK = ''
 
 class ggbetDriver(QObject):
-
+    signal_with_cf_and_bet_limit = pyqtSignal(list)
     def doWebDriver(self):
 
         #self.profile_id = GGBET_PORT
@@ -60,8 +60,38 @@ class ggbetDriver(QObject):
         return bk_link + "/".join(bet_link.split('/')[4:])
 
     def do_bet(self, dict):
-
         self.bet_parameter = dict
+        """self.bet_parameter = {
+            "fork_id": "caf709ede191ef38f3",
+            "income": 1.14,
+            "ow_income": 0,
+            "sport": "esports.cs",
+            "bet_type": "WIN",
+            "event_id": "16366171",
+            "is_middles": "0",
+            "is_cyber": "0",
+            "BK1_bet": "WIN__P1",
+            "BK1_bet_type": "WIN",
+            "BK1_alt_bet": "",
+            "BK1_cf": 2.16,
+            "BK1_event_id": "GGGTN060ED2572B4",
+            "BK1_event_native_id": "5:7bd12e59-4ffb-4938-84d1-347c6d2cbea0",
+            "BK1_game": "Билли Харрис vs Dali Blanch",
+            "BK1_href": "https://ggbet.name/ru/esports/match/bad-news-eagles-vs-eternal-fire-04-10",
+            "BK1_league": "АТР Челленджер. Аликанте",
+            "BK1_name": "gg_bet",
+            "BK1_score": "0:0",
+            "BK1_event_meta": "{'start_at': 1664799900}",
+            "BK1_market_meta": "{\"title_name\":\"Победитель\",\"bet_name\":\"Bad News Eagles\"}",
+            "BK2_bet": "WIN__P2",
+            "BK2_bet_type": "WIN",
+            "BK2_cf": 1.769,
+            "BK2_href": "https://www.skynotes.one/ru/esports/csgo-iem-road-to-rio-eu-rmr-a/bad-news-eagles-vs-eternal-fire/1559739529#all",
+            "BK2_name": "pinnacle",
+            "BK2_event_meta": "AAA",
+            "BK2_market_meta": "AAA",
+            "alive_sec": 57
+        }"""
         if self.bet_parameter['BK1_name'] == 'gg_bet':
             self.bet_href = self.bet_parameter['BK1_href']
             self.bet_type = self.bet_parameter['BK1_bet_type']
@@ -72,8 +102,8 @@ class ggbetDriver(QObject):
             self.bet_type = self.bet_parameter['BK2_bet_type']
             self.bet_name = self.bet_parameter['BK2_bet']
             self.bet_markers = json.loads(self.bet_parameter['BK2_market_meta'])
-        print('Получил')
-        print(self.bet_parameter['ggbet_sum_bet'])
+        print('GGBET:   Получил данные по вилке')
+
         self.bet_link = self.get_match_link(self.bk_link, self.bet_href)
         self.bet_title = self.bet_markers['title_name']
         self.bet_name = self.bet_markers['bet_name']
@@ -92,6 +122,7 @@ class ggbetDriver(QObject):
         self.driver.execute_script(f"window.scrollTo(0, 3000)")
         time.sleep(1)
         self.driver.execute_script(f"window.scrollTo(0, 0)")
+        time.sleep(1)
 
         # находим поле по title_name
             # ключ для поиска областей с каждым типом ставки
@@ -106,10 +137,13 @@ class ggbetDriver(QObject):
                 bet_type_name = bet_field.find_element(By.XPATH, './/div[@class="{}"]'.format(key_bet_type_name)).text
                 if bet_type_name == self.bet_title:
                     self.fields_with_our_bet = bet_field
-                    print('Поле найдено')
+                    print('GGBET:   Поле найдено')
             except:
-                print("Не удалось обработать поле")
+                print("GGBET:   Не удалось найти поле со ставкой")
+
         # находим ставку по bet_name и нажимаем на неё
+        print(self.bet_name)
+        is_cupon_open = True
         for n in range(0, 5000, 300):
             try:
                 button_with_our_bet = self.fields_with_our_bet.find_element(By.XPATH,
@@ -117,11 +151,15 @@ class ggbetDriver(QObject):
                                                                            self.bet_name))
                 self.cf = button_with_our_bet.text
                 button_with_our_bet.click()
-                print("Ставка сделана")
+                print("GGBET:   Ставка сделана")
+                is_cupon_open = False
                 break
             except:
                 self.driver.execute_script(f"window.scrollTo(0, {n})")
 
+        if is_cupon_open:
+            print("GGBet:     Ставка закрыта")
+            return
         # заключаем пари
         time.sleep(1)
 
@@ -136,26 +174,23 @@ class ggbetDriver(QObject):
 
 
         key_btns_sum = 'amount__stake___2tO04 amount__is-desktop___3tNIb'
-        time.sleep(2)
+        time.sleep(1)
         self.buttons_with_sum = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_btns_sum))
-        print(len(self.buttons_with_sum))
         for btn in self.buttons_with_sum:
-            print(btn.text)
             if btn.text == 'MAX':
-                print('True')
+                print('GGBET:   Нашли кнопку макс ставки ')
                 btn.click()
                 key_max_bet_value = 'totalRow__value___1Ygme'
                 self.bet_limit = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_max_bet_value))[0].text
 
-        print(f'Коэффициент {self.cf}')
-        print(f'Лимит на ставку {self.bet_limit.split(" ")[0]}')
+        print('GGBET:   ', self.cf, self.bet_limit.split("\n")[0])
+        self.signal_with_cf_and_bet_limit.emit([self.cf, self.bet_limit.split("\n")[0]])
 
+
+    def betting(self, bet_sum):
         # ключ строки для ввода суммы ставки
         key_input_sum_class = 'input__input___tstQL'
-        # вводим сумму
-        """try:
-            bet_sum = int(self.bet_parameter['ggbet_sum_bet'])
-            print(bet_sum)
+        try:
             input_sum_lable = self.driver.find_element(By.XPATH, '//input[@class = "{}"]'.format(key_input_sum_class))
             input_sum_lable.clear()
             input_sum_lable.send_keys(bet_sum)
@@ -167,11 +202,7 @@ class ggbetDriver(QObject):
             button_do_bet = self.driver.find_element(By.XPATH, '//div[@class = "{}"]'.format(key_button_do_bet))
             button_do_bet.click()
         except:
-            pass"""
-
-        print(self.bet_link)
-        print(self.bet_markers['title_name'], " | ", self.bet_markers['bet_name'])
-
+            pass
 
 
 def get_webdriver(port):
@@ -189,24 +220,24 @@ def get_debug_port(profile_id):
 
 
 
-driver = ggbetDriver()
-driver.doWebDriver()
+#driver = ggbetDriver()
+#driver.doWebDriver()
 #driver.log_in(['+79771000530', 'Arsen2000!'])
 
-dict = {
+"""dict = {
     'BK1_name' : 'pinnacle',
-    'BK1_href' : 'https://www.littlecheff.shop/ru/esports/league-of-legends-world-championship-play-in/loud-vs-fnatic/1560211152/',
+    'BK1_href' : 'https://www.skynotes.one/ru/esports/csgo-iem-road-to-rio-eu-rmr-b/vitality-vs-fantasy/1560166295',
     'BK1_bet_type' : 'WIN',
     'BK1_bet' : 'WIN__P2',
-    'BK1_cf': '1.22',
+    'BK1_cf': '9.14',
     'BK2_name' : 'gg_bet',
-    'BK2_href' : 'https://gg209.bet/ru/esports/match/fnatic-vs-loud-01-10',
+    'BK2_href' : 'https://ggbet.name/ru/esports/match/vitality-vs-fantasy-04-10',
     'BK2_bet_type' : 'WIN',
-    'BK2_bet' : 'WIN__P2',
-    'BK2_cf': '4.94',
-    'BK2_market_meta' : '{"title_name":"Победитель","bet_name":"LOUD"}',
+    'BK2_bet' : 'WIN__P1',
+    'BK2_cf': '1.1',
+    'BK2_market_meta' : '{"title_name":"Победитель","bet_name":"VITALITY"}',
     'pinnacle_sum_bet' : '100',
     'ggbet_sum_bet' : '100',
-}
+}"""
 
-driver.do_bet(dict)
+#driver.do_bet(dict)

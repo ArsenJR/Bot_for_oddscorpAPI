@@ -20,6 +20,8 @@ class Window(QMainWindow, QObject, object):
     signal_to_logIn_pinnacle = pyqtSignal(list)
     signal_to_send_bet_parameter_to_ggbet = pyqtSignal(dict)
     signal_to_send_bet_parameter_to_pinnacle = pyqtSignal(dict)
+    signal_do_bet_pinnacle = pyqtSignal(int)
+    signal_do_bet_ggbet = pyqtSignal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -29,6 +31,8 @@ class Window(QMainWindow, QObject, object):
     def setupUi(self):
         self.setWindowTitle("Forks scaner")
         self.resize(1200, 700)
+        #self.showMaximized()
+
         # создаем для обращение к окну приложения
         self.centralWidget = QWidget()
         self.setCentralWidget(self.centralWidget)
@@ -46,6 +50,12 @@ class Window(QMainWindow, QObject, object):
         self.listView.setModel(self.model)
         self.listView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
 
+        # тестовая кнопка
+        self.btn_test = QtWidgets.QPushButton('Тестовая кнопка', self)
+        self.btn_test.setGeometry(QtCore.QRect(70, 10, 200, 30))
+        self.btn_test.setObjectName("btn_test")
+        self.btn_test.clicked.connect(self.test_do_bet)
+
         # кнопка открывабщая окно с выбором порта
         self.btn_set_port = QtWidgets.QPushButton('Выбор порта', self)
         self.btn_set_port.setGeometry(QtCore.QRect(70, 110, 200, 30))
@@ -62,7 +72,7 @@ class Window(QMainWindow, QObject, object):
         self.btn_bk_logIn = QtWidgets.QPushButton('Авторизоваться', self)
         self.btn_bk_logIn.setGeometry(QtCore.QRect(70, 310, 200, 30))
         self.btn_bk_logIn.setObjectName("btn_bk_logIn")
-        self.btn_bk_logIn.clicked.connect(self.open_logIn_dialog)
+        #self.btn_bk_logIn.clicked.connect(self.open_logIn_dialog)
 
         # создаем кнопку окончания работы сканера
         self.btn_scaner_end = QtWidgets.QPushButton('Закончить сканирование', self)
@@ -82,13 +92,76 @@ class Window(QMainWindow, QObject, object):
         self.btn_do_bet.setGeometry(QtCore.QRect(70, 610, 200, 30))
         self.btn_do_bet.setObjectName("btn_do_bet")
         #self.btn_do_bet.setEnabled(False)
-        self.btn_do_bet.clicked.connect(self.do_bet)
+        self.btn_do_bet.clicked.connect(self.get_cf_bet_limit)
 
-        # открываем автоматизированные вкладки с бк
-        #self.open_ggbet_driver()
-        #self.open_pinnacle_driver()
+        # логические значения (приняты ли данные о кф и лимите ставки из бк)
+        self.is_ggbet_data_received = False
+        self.is_pinnacle_data_received = False
 
-    def open_port_choose_dialog(self):
+        # Параметры для ставки
+        self.limit_sum = None
+
+
+    def test_do_bet(self):
+        self.signal_to_send_bet_parameter_to_ggbet.emit({"fork_for_bet" : 0})
+        self.signal_to_send_bet_parameter_to_pinnacle.emit({"fork_for_bet" : 0})
+        self.is_ggbet_data_received = False
+        self.is_pinnacle_data_received = False
+        print('Hi')
+
+    def save_cf_and_bet_limit_from_pinnacle(self, data):
+        self.pinnacle_cf = None
+        self.pinnacle_limit_sum = None
+        print('Accsesed pinnacle')
+
+        self.pinnacle_cf = float(data[0])
+        self.pinnacle_limit_sum = int(float(data[1].replace(',', '.')))
+
+        print(self.pinnacle_cf, type(self.pinnacle_cf))
+        print(self.pinnacle_limit_sum, type(self.pinnacle_limit_sum))
+
+        self.is_pinnacle_data_received = True
+
+        if self.is_ggbet_data_received:
+            self.bet_calc()
+
+    def save_cf_and_bet_limit_from_ggbet(self, data):
+        self.ggbet_cf = None
+        self.ggbet_limit_sum = None
+        print('Accsesed ggbet')
+
+        self.ggbet_cf = float(data[0])
+        self.ggbet_limit_sum = int(float(data[1]))
+
+        print(self.ggbet_cf, type(self.ggbet_cf))
+        print(self.ggbet_limit_sum, type(self.ggbet_limit_sum))
+
+        self.is_ggbet_data_received = True
+
+        if self.is_pinnacle_data_received:
+            self.bet_calc()
+
+    def bet_calc(self):
+
+        print('Pinnacle    ', self.pinnacle_cf, self.pinnacle_limit_sum)
+        print('GGbet    ', self.ggbet_cf, self.ggbet_limit_sum)
+
+        total_prob = 1 / self.ggbet_cf + 1 / self.pinnacle_cf
+        print(total_prob)
+
+        if total_prob < 1:
+            if self.limit_sum:
+                ggbet_sum_bet = float(self.limit_sum)
+            else:
+                ggbet_sum_bet = float(1000)
+            pinnacle_sum_bet = (ggbet_sum_bet * self.ggbet_cf) / self.pinnacle_cf
+            if pinnacle_sum_bet > self.pinnacle_limit_sum:
+                pinnacle_sum_bet = self.pinnacle_limit_sum
+                ggbet_sum_bet = (pinnacle_sum_bet * self.pinnacle_cf) / self.ggbet_cf
+            self.signal_do_bet_pinnacle.emit(int(pinnacle_sum_bet))
+            self.signal_do_bet_ggbet.emit(int(ggbet_sum_bet))
+
+    def open_port_choose_dialog(self):  # Открытие поля с выбором порта Octo Browser
         dialog = DialogToChoosePort(bk_name="ggbet", parent=self)
         dialog.show()
         if dialog.exec():
@@ -111,46 +184,61 @@ class Window(QMainWindow, QObject, object):
                     self.open_pinnacle_driver()
                     self.open_ggbet_driver()
 
-    def open_settings_dialog(self):
-        self.scanerEnd()
-        dialog = DialogSettings(self)
+    def open_ggbet_driver(self):
+        self.ggbet_thread = QThread()
+        self.ggbet_driver = ggbetDriver()
+        self.ggbet_driver.moveToThread(self.ggbet_thread)
+        self.ggbet_thread.started.connect(self.ggbet_driver.doWebDriver)
+        #self.signal_to_logIn_ggbet.connect(self.ggbet_driver.log_in)
+        self.signal_to_send_bet_parameter_to_ggbet.connect(self.ggbet_driver.do_bet)
+        self.ggbet_driver.signal_with_cf_and_bet_limit.connect(self.save_cf_and_bet_limit_from_ggbet)
+        self.signal_do_bet_ggbet.connect(self.ggbet_driver.betting)
+
+        self.ggbet_thread.start()
+
+
+    def open_pinnacle_driver(self):
+        self.pinnacle_thread = QThread()
+        self.pinnacle_driver = pinnacleDriver()
+        self.pinnacle_driver.moveToThread(self.pinnacle_thread)
+        self.pinnacle_thread.started.connect(self.pinnacle_driver.doWebDriver)
+        #self.signal_to_logIn_pinnacle.connect(self.pinnacle_driver.log_in)
+        self.signal_to_send_bet_parameter_to_pinnacle.connect(self.pinnacle_driver.do_bet)
+        self.pinnacle_driver.signal_with_cf_and_bet_limit.connect(self.save_cf_and_bet_limit_from_pinnacle)
+        self.signal_do_bet_pinnacle.connect(self.pinnacle_driver.betting)
+
+        self.pinnacle_thread.start()
+
+    def open_port_choose_dialog(self):  # Открытие поля с выбором порта Octo Browser
+
+        # Открываем окно с вводом ссылки и выбором канала в окто для GGbet
+        dialog = DialogToChoosePort(bk_name="ggbet", parent=self)
+        dialog.show()
         if dialog.exec():
-            print('Данные получены!')
-            self.limit_type = SetParamToBetting.limit_type
-            self.limit_sum = SetParamToBetting.limit_sum
-        else:
-            print('Cansel!')
+            print('Данные по GGBet получены!')
+            ggbet_link = ChoosePort.LINK
+            ggbet_port = ChoosePort.PORT
+            # Открываем окно с вводом ссылки и выбором канала в окто для Pinnacle
+            dialog = DialogToChoosePort(bk_name="pinnacle", parent=self)
+            dialog.show()
+            if dialog.exec():
+                print('Данные по PINNACLE получены!')
+                pinnacle_link = ChoosePort.LINK
+                pinnacle_port = ChoosePort.PORT
 
-    def bet_calc(self, dict):
-        if dict['BK1_name'] == 'gg_bet':
-            ggbet_cf = dict['BK1_cf']
-            pinnacle_cf = dict['BK2_cf']
-        elif dict['BK2_name'] == 'gg_bet':
-            ggbet_cf = dict['BK2_cf']
-            pinnacle_cf = dict['BK1_cf']
+                GGBetDriver.GGBET_PORT = ggbet_port
+                GGBetDriver.GGBET_LINK = ggbet_link
+                PinnacleDriver.PINNACLE_PORT = pinnacle_port
+                PinnacleDriver.PINNACLE_LINK = pinnacle_link
 
-        total_prob = 1 / ggbet_cf + 1 / pinnacle_cf
+                # Открываем браузеры
+                if pinnacle_port != ggbet_port:
+                    self.open_pinnacle_driver()
+                    self.open_ggbet_driver()
 
-        if self.limit_type == 1:
-            ggbet_sum_bet = math.ceil(1 / ggbet_cf / total_prob * float(self.limit_sum))
-            pinnacle_sum_bet = math.ceil(1 / pinnacle_cf / total_prob * float(self.limit_sum))
-            dict['ggbet_sum_bet'] = ggbet_sum_bet
-            dict['pinnacle_sum_bet'] = pinnacle_sum_bet
-        elif self.limit_type == 2: # макс ставка на ggbet
-            ggbet_sum_bet = float(self.limit_sum)
-            pinnacle_sum_bet = (ggbet_sum_bet * ggbet_cf) / pinnacle_cf
-            dict['ggbet_sum_bet'] = math.ceil(ggbet_sum_bet)
-            dict['pinnacle_sum_bet'] = math.ceil(pinnacle_sum_bet)
-        elif self.limit_type == 3: # макс ставка на pinnacle
-            pinnacle_sum_bet = float(self.limit_sum)
-            ggbet_sum_bet = (pinnacle_sum_bet * pinnacle_cf) / ggbet_cf
-            dict['ggbet_sum_bet'] = math.ceil(ggbet_sum_bet)
-            dict['pinnacle_sum_bet'] = math.ceil(pinnacle_sum_bet)
-        return dict
+    """_____Проставление вилки_____"""
 
-
-
-    def do_bet(self):
+    def get_cf_bet_limit(self):
         name = None
         indef_of_selected_item = self.listView.selectionModel().selectedIndexes()
         if indef_of_selected_item:
@@ -172,63 +260,19 @@ class Window(QMainWindow, QObject, object):
                     for fork in fork_now_dict:
                         if fork['fork_id'] == fork_key:
                             fork_for_bet = fork
-                            fork_for_bet_with_sum = fork
-                            print('Good')
-                            fork_for_bet_with_sum = self.bet_calc(fork_for_bet)
-                            print(fork_for_bet_with_sum)
-                            self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet_with_sum)
-                            self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet_with_sum)
+                            self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet)
+                            self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet)
+                            self.is_ggbet_data_received = False
+                            self.is_pinnacle_data_received = False
             except:
                 print("Вилка пропала")
 
 
-    def open_pinnacle_driver(self):
-        self.pinnacle_thread = QThread()
-        self.pinnacle_driver = pinnacleDriver()
-        self.pinnacle_driver.moveToThread(self.pinnacle_thread)
-        self.pinnacle_thread.started.connect(self.pinnacle_driver.doWebDriver)
-        self.signal_to_logIn_pinnacle.connect(self.pinnacle_driver.log_in)
-        self.signal_to_send_bet_parameter_to_pinnacle.connect(self.pinnacle_driver.do_bet)
-
-        self.pinnacle_thread.start()
-
-
-    def open_ggbet_driver(self):
-        self.ggbet_thread = QThread()
-        self.ggbet_driver = ggbetDriver()
-        self.ggbet_driver.moveToThread(self.ggbet_thread)
-        self.ggbet_thread.started.connect(self.ggbet_driver.doWebDriver)
-        self.signal_to_logIn_ggbet.connect(self.ggbet_driver.log_in)
-        self.signal_to_send_bet_parameter_to_ggbet.connect(self.ggbet_driver.do_bet)
-
-        self.ggbet_thread.start()
-
-    def open_logIn_dialog(self):
-        self.scanerEnd()
-        ggbet_dialog = DialogToLogIn("GGbet")
-        if ggbet_dialog.exec():
-            ggbet_login = QDialodToLogin.Login
-            ggbet_password = QDialodToLogin.Password
-            pinnacle_dialog = DialogToLogIn("PINNACLE")
-            if pinnacle_dialog.exec():
-                pinnacle_login = QDialodToLogin.Login
-                pinnacle_password = QDialodToLogin.Password
-                # авторизуемся в конторах
-                self.signal_to_logIn_ggbet.emit([ggbet_login, ggbet_password])
-                self.signal_to_logIn_pinnacle.emit([pinnacle_login, pinnacle_password])
-
-                self.btn_bk_logIn.setEnabled(False)
-                self.btn_do_bet.setEnabled(True)
-        else:
-            print("Cancel!")
-
-
-
-
+    """_____Работа сканера в потоке_____"""
     def reportProgress(self, n):
-        fork_now, fork_alive_now  = n
+        fork_now, fork_alive_now = n
 
-        #получаем выбранный эллемент
+        # получаем выбранный эллемент
         indef_of_selected_item = self.listView.selectionModel().selectedIndexes()
         # получаем текст выбранного эллемента
         name = None
@@ -237,7 +281,7 @@ class Window(QMainWindow, QObject, object):
             text_selected_items = " | ".join(text_selected_items.split(' | ')[:-1])
             name = text_selected_items
 
-        self.model.removeRows(0,self.model.rowCount())
+        self.model.removeRows(0, self.model.rowCount())
         row_number = 1000
         for i in range(len(fork_now)):
 
@@ -252,7 +296,6 @@ class Window(QMainWindow, QObject, object):
 
     def scanerEnd(self):
         ForkScanerClass.CHEK = False
-
 
     def scanerStartInThread(self):
         ForkScanerClass.CHEK = True
@@ -283,10 +326,125 @@ class Window(QMainWindow, QObject, object):
             lambda: self.model.removeRows(0, self.model.rowCount())
         )
 
+    """_____Настройки проставления_____"""
+    def open_settings_dialog(self):
+        self.scanerEnd()
+        dialog = DialogSettings(self)
+        if dialog.exec():
+            print('Данные получены!')
+            self.limit_type = SetParamToBetting.limit_type
+            self.limit_sum = SetParamToBetting.limit_sum
+        else:
+            print('Cansel!')
+
+    """_____Log In BK_____"""
+    def open_logIn_dialog(self):
+        self.scanerEnd()
+        ggbet_dialog = DialogToLogIn("GGbet")
+        if ggbet_dialog.exec():
+            ggbet_login = QDialodToLogin.Login
+            ggbet_password = QDialodToLogin.Password
+            pinnacle_dialog = DialogToLogIn("PINNACLE")
+            if pinnacle_dialog.exec():
+                pinnacle_login = QDialodToLogin.Login
+                pinnacle_password = QDialodToLogin.Password
+                # авторизуемся в конторах
+                self.signal_to_logIn_ggbet.emit([ggbet_login, ggbet_password])
+                self.signal_to_logIn_pinnacle.emit([pinnacle_login, pinnacle_password])
+
+                self.btn_bk_logIn.setEnabled(False)
+                self.btn_do_bet.setEnabled(True)
+        else:
+            print("Cancel!")
+
+
+    """
+        
+    
+
+    
+
+    def bet_calc(self, dict):
+        if dict['BK1_name'] == 'gg_bet':
+            ggbet_cf = dict['BK1_cf']
+            pinnacle_cf = dict['BK2_cf']
+        elif dict['BK2_name'] == 'gg_bet':
+            ggbet_cf = dict['BK2_cf']
+            pinnacle_cf = dict['BK1_cf']
+
+        total_prob = 1 / ggbet_cf + 1 / pinnacle_cf
+
+        if self.limit_type == 1:
+            ggbet_sum_bet = math.ceil(1 / ggbet_cf / total_prob * float(self.limit_sum))
+            pinnacle_sum_bet = math.ceil(1 / pinnacle_cf / total_prob * float(self.limit_sum))
+            dict['ggbet_sum_bet'] = ggbet_sum_bet
+            dict['pinnacle_sum_bet'] = pinnacle_sum_bet
+        elif self.limit_type == 2: # макс ставка на ggbet
+            ggbet_sum_bet = float(self.limit_sum)
+            pinnacle_sum_bet = (ggbet_sum_bet * ggbet_cf) / pinnacle_cf
+            dict['ggbet_sum_bet'] = math.ceil(ggbet_sum_bet)
+            dict['pinnacle_sum_bet'] = math.ceil(pinnacle_sum_bet)
+        elif self.limit_type == 3: # макс ставка на pinnacle
+            pinnacle_sum_bet = float(self.limit_sum)
+            ggbet_sum_bet = (pinnacle_sum_bet * pinnacle_cf) / ggbet_cf
+            dict['ggbet_sum_bet'] = math.ceil(ggbet_sum_bet)
+            dict['pinnacle_sum_bet'] = math.ceil(pinnacle_sum_bet)
+        return dict
+
+
+
+    
+
+    def test_fu(self):
+        print('Go')
+        print(self.pinnacle_cf, self.pinnacle_limit_sum)
+        print(self.ggbet_cf, self.ggbet_limit_sum)
+
+
+        profit = 1/self.ggbet_cf + 1 / self.pinnacle_cf
+        print(profit)
+        if profit < 1:
+            ggbet_sum_bet = math.ceil(1 / self.ggbet_cf / profit * float(self.limit_sum))
+            pinnacle_sum_bet = math.ceil(1 / self.pinnacle_cf / profit * float(self.limit_sum))
+            if ggbet_sum_bet > self.ggbet_limit_sum:
+                ggbet_sum_bet = self.ggbet_limit_sum
+                pinnacle_sum_bet = (ggbet_sum_bet * self.ggbet_cf) / self.pinnacle_cf
+                if pinnacle_sum_bet > self.pinnacle_limit_sum:
+                    pinnacle_sum_bet = self.pinnacle_limit_sum
+                    ggbet_sum_bet = (pinnacle_sum_bet * self.pinnacle_cf) / self.ggbet_cf
+
+            if pinnacle_sum_bet > self.pinnacle_limit_sum:
+                pinnacle_sum_bet = self.pinnacle_limit_sum
+                ggbet_sum_bet = (pinnacle_sum_bet * self.pinnacle_cf) / self.ggbet_cf
+
+            print('GGbet ', math.ceil(ggbet_sum_bet))
+            print('Pinnacle ', math.ceil(pinnacle_sum_bet))
+            self.signal_do_bet_pinnacle(int(math.ceil(pinnacle_sum_bet)))
+            #self.signal_do_bet_ggbet(math.ceil(ggbet_sum_bet))
+
+        else:
+            print('В этих ставках вилки не обнаружено')
+
+
+
+    
+
+
+
+    
+    
+
+    
 
 
 
 
+    
+
+
+
+
+"""
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = Window()
