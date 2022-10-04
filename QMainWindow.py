@@ -85,13 +85,14 @@ class Window(QMainWindow, QObject, object):
         self.btn_scaner_start = QtWidgets.QPushButton('Начать сканирование', self)
         self.btn_scaner_start.setGeometry(QtCore.QRect(70, 510, 200, 30))
         self.btn_scaner_start.setObjectName("btn_start_scan")
+        #self.btn_scaner_start.setEnabled(False)
         self.btn_scaner_start.clicked.connect(self.scanerStartInThread)
 
         # кнопка "Сделать ставку"
         self.btn_do_bet = QtWidgets.QPushButton('Сделать ставку', self)
         self.btn_do_bet.setGeometry(QtCore.QRect(70, 610, 200, 30))
         self.btn_do_bet.setObjectName("btn_do_bet")
-        #self.btn_do_bet.setEnabled(False)
+        self.btn_do_bet.setEnabled(False)
         self.btn_do_bet.clicked.connect(self.get_cf_bet_limit)
 
         # логические значения (приняты ли данные о кф и лимите ставки из бк)
@@ -100,6 +101,9 @@ class Window(QMainWindow, QObject, object):
 
         # Параметры для ставки
         self.limit_sum = None
+
+        # лист с id нужных вилок
+        self.list_forks_auto_betting = []
 
 
     def test_do_bet(self):
@@ -151,14 +155,14 @@ class Window(QMainWindow, QObject, object):
 
         if total_prob < 1:
             if self.limit_sum:
-                ggbet_sum_bet = float(self.limit_sum)
+                pinnacle_sum_bet = float(self.limit_sum)
             else:
-                ggbet_sum_bet = float(1000)
-            pinnacle_sum_bet = (ggbet_sum_bet * self.ggbet_cf) / self.pinnacle_cf
-            if pinnacle_sum_bet > self.pinnacle_limit_sum:
-                pinnacle_sum_bet = self.pinnacle_limit_sum
-                ggbet_sum_bet = (pinnacle_sum_bet * self.pinnacle_cf) / self.ggbet_cf
-            self.signal_do_bet_pinnacle.emit(int(pinnacle_sum_bet))
+                pinnacle_sum_bet = float(500)
+            ggbet_sum_bet = (pinnacle_sum_bet * self.pinnacle_cf) / self.ggbet_cf
+            if ggbet_sum_bet > self.ggbet_limit_sum:
+                ggbet_sum_bet = self.ggbet_limit_sum
+                pinnacle_sum_bet = (ggbet_sum_bet * self.ggbet_cf) / self.pinnacle_cf
+            self.signal_do_bet_pinnacle.emit(int(math.ceil(pinnacle_sum_bet / 63)))
             self.signal_do_bet_ggbet.emit(int(ggbet_sum_bet))
 
     def open_port_choose_dialog(self):  # Открытие поля с выбором порта Octo Browser
@@ -235,8 +239,20 @@ class Window(QMainWindow, QObject, object):
                 if pinnacle_port != ggbet_port:
                     self.open_pinnacle_driver()
                     self.open_ggbet_driver()
+                    self.btn_scaner_start.setEnabled(True)
 
     """_____Проставление вилки_____"""
+    def auto_get_cf_bet_limit(self, fork):
+        fork_for_bet = fork
+        self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet)
+        self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet)
+        self.is_ggbet_data_received = False
+        self.is_pinnacle_data_received = False
+        self.pinnacle_cf = None
+        self.ggbet_cf = None
+        self.pinnacle_limit_sum = None
+        self.ggbet_limit_sum = None
+        self.btn_scaner_end.click()
 
     def get_cf_bet_limit(self):
         name = None
@@ -264,13 +280,52 @@ class Window(QMainWindow, QObject, object):
                             self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet)
                             self.is_ggbet_data_received = False
                             self.is_pinnacle_data_received = False
+                            self.btn_scaner_end.clicked()
             except:
                 print("Вилка пропала")
 
 
     """_____Работа сканера в потоке_____"""
     def reportProgress(self, n):
-        fork_now, fork_alive_now = n
+        fork_now, fork_alive_now, forks_data = n
+        for fork_data in forks_data:
+            if self.is_auto_work:
+                print('Raund')
+                if fork_data['fork_id'] not in self.list_forks_auto_betting:
+                    if fork_data['alive_sec'] > 2:
+                        if fork_data['sport'] == 'esports.cs':
+                            self.is_auto_work = False
+                            print('Нашел новую вилку CS  ', fork_data['fork_id'])
+                            self.list_forks_auto_betting.append(fork_data['fork_id'])
+                            self.btn_scaner_end.click()
+                            self.auto_get_cf_bet_limit(fork_data)
+                            return
+
+                        if fork_data['sport'] == 'esports.dota2':
+                            self.is_auto_work = False
+                            print('Нашел новую вилку DOTA2  ', fork_data['fork_id'])
+                            self.list_forks_auto_betting.append(fork_data['fork_id'])
+                            self.btn_scaner_end.click()
+                            self.auto_get_cf_bet_limit(fork_data)
+                            return
+
+                        if fork_data['sport'] == 'esports.lol':
+                            self.is_auto_work = False
+                            print('Нашел новую вилку LOL  ', fork_data['fork_id'])
+                            self.list_forks_auto_betting.append(fork_data['fork_id'])
+                            self.list_forks_auto_betting.append(fork_data['fork_id'])
+                            self.auto_get_cf_bet_limit(fork_data)
+                            return
+
+                    if fork_data['sport'] == 'tennis':
+                        if fork_data['bet_type'] == 'TOTALS':
+                            self.is_auto_work = False
+                            print('Нашел новую вилку tennis  ', fork_data['fork_id'])
+                            self.list_forks_auto_betting.append(fork_data['fork_id'])
+                            self.list_forks_auto_betting.append(fork_data['fork_id'])
+                            self.auto_get_cf_bet_limit(fork_data)
+                            return
+
 
         # получаем выбранный эллемент
         indef_of_selected_item = self.listView.selectionModel().selectedIndexes()
@@ -298,6 +353,12 @@ class Window(QMainWindow, QObject, object):
         ForkScanerClass.CHEK = False
 
     def scanerStartInThread(self):
+        if(self.auto_betting):
+            self.is_auto_work = True
+            self.btn_do_bet.setEnabled(False)
+        else:
+            self.is_auto_work = False
+            self.btn_do_bet.setEnabled(True)
         ForkScanerClass.CHEK = True
         # Step 2: Create a QThread object
         self.thread = QThread()
@@ -334,6 +395,8 @@ class Window(QMainWindow, QObject, object):
             print('Данные получены!')
             self.limit_type = SetParamToBetting.limit_type
             self.limit_sum = SetParamToBetting.limit_sum
+            self.auto_betting = SetParamToBetting.auto_bet
+            self.btn_do_bet.setEnabled(False)
         else:
             print('Cansel!')
 
