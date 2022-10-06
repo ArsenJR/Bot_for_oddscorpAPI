@@ -187,7 +187,10 @@ class ggbetDriver(QObject):
         self.signal_with_cf_and_bet_limit.emit([self.cf, self.bet_limit.split("\n")[0]])
 
 
-    def betting(self, bet_sum):
+    def betting(self, bet_sum_bet_cf):
+        print('GGBet: ', bet_sum_bet_cf)
+        bet_sum = bet_sum_bet_cf[0]
+        bet_kf = bet_sum_bet_cf[1]
         # ключ строки для ввода суммы ставки
         key_input_sum_class = 'input__input___tstQL'
         try:

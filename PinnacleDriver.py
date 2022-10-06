@@ -111,7 +111,8 @@ class pinnacleDriver(QObject):
         self.driver.get(bet_link)
 
         # дожидаемся прогрузки страницы
-        self.wait.until(EC.visibility_of_element_located((By.ID, "all")))
+        key_loading = 'style_button__2EZ2H style_selected__fYXri'
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//button[@class="{}"]'.format(key_loading))))
 
         try:
             self.bets_field = self.get_field_by_name(bet_type, bet_name, sport_type)
@@ -388,7 +389,10 @@ class pinnacleDriver(QObject):
             bet_name = '+' + bet_name
         return bet_name
 
-    def betting(self,bet_sum):
+    def betting(self,bet_sum_bet_cf):
+        print('Pinnacle: ', bet_sum_bet_cf)
+        bet_sum = bet_sum_bet_cf[0]
+        bet_kf = bet_sum_bet_cf[1]
 
         # находим поле и вводим туда сумму ставки
         input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')

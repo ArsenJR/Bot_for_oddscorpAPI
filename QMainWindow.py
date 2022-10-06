@@ -13,6 +13,9 @@ from PinnacleDriver import *
 from GetToOddscorp import *
 from ChoosePort import *
 import ChoosePort
+from CurrencyConverter import *
+import CurrencyConverter
+from BetAmountCalculator import bet_calc
 
 class Window(QMainWindow, QObject, object):
 
@@ -20,25 +23,89 @@ class Window(QMainWindow, QObject, object):
     signal_to_logIn_pinnacle = pyqtSignal(list)
     signal_to_send_bet_parameter_to_ggbet = pyqtSignal(dict)
     signal_to_send_bet_parameter_to_pinnacle = pyqtSignal(dict)
-    signal_do_bet_pinnacle = pyqtSignal(int)
-    signal_do_bet_ggbet = pyqtSignal(int)
+    signal_do_bet_pinnacle = pyqtSignal(list)
+    signal_do_bet_ggbet = pyqtSignal(list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.clicksCount = 0
         self.setupUi()
 
+        # определяем переменные класса
+        self.auto_betting = False   # автоматическое проставление
+        self.is_ports_open = False  # открыты ли порты
+        self.is_settings_defined = False    # заданы ли настройки
+        self.auto_betting = False   # автоматическое проставление
+        self.limit_type = None      # по какой бк брать фиксированную ставку
+        self.limit_sum = None       # фиксированная сумма ставки (общая или в одной из бк)
+        self.how_do_bet = None      # как ставить (какую первую)
+        # данные по валютам в бк
+        self.is_ggbet_rub = True
+        self.is_pinnacle_rub = True
+        self.ggbet_exchange_rate = 1
+        self.pinnacle_exchange_rate = 1
+
     def setupUi(self):
-        self.setWindowTitle("Forks scaner")
-        self.resize(1200, 700)
-        #self.showMaximized()
+        self.setWindowTitle("Сканер вилок с автоматизированным проставлением")
+        self.setFixedSize(1500, 800)
+
+        # создаем menubar
+        self.menu = self.menuBar()
+        self.start_menu = self.menu.addMenu("&Начало")
+        self.settings_menu = self.menu.addMenu("&Настройки")
+        self.help_menu = self.menu.addMenu("&Помощь")
+
+        # cоздаем QActions, которыми будем заполнять menuBar
+
+        # кнопка выбора порта
+        self.btn_choose_port = QAction("&Выбор порта", self)
+        self.btn_choose_port.setStatusTip("Choose port from Octo Browser")
+        self.btn_choose_port.triggered.connect(self.open_port_choose_dialog)
+        self.btn_choose_port.setEnabled(True)
+        # кнопка входа на аккаунт в портах
+        self.btn_log_in = QAction("&Авторизоваться", self)
+        self.btn_log_in.setStatusTip("Log in BK")
+        # self.btn_log_in.triggered.connect(self.open_logIn_dialog)
+        self.btn_log_in.setEnabled(False)
+
+        # кнопка общих настроек
+        self.btn_settings = QAction("&Настройки бота", self)
+        self.btn_settings.setStatusTip("Settings")
+        self.btn_settings.triggered.connect(self.open_settings_dialog)
+        # кнопка с настройкой валюты
+        self.btn_currency_converter = QAction("&Конвертер валют", self)
+        self.btn_currency_converter.setStatusTip("Currency Converter")
+        self.btn_currency_converter.triggered.connect(self.open_currency_converter_dialog)
+
+
+        # кнопка со справкой
+        self.btn_reference = QAction("&Справка", self)
+        self.btn_reference.setStatusTip("Referens")
+        # self.btn_reference.triggered.connect(self.onMyToolBarButtonClick)
+        # кнопка c описанием бота
+        self.btn_description = QAction("&О боте", self)
+        self.btn_description.setStatusTip("Description")
+        # self.btn_description.triggered.connect(self.onMyToolBarButtonClick)
+
+        # заполняем start menu
+        self.start_menu.addAction(self.btn_choose_port)
+        self.start_menu.addSeparator()
+        self.start_menu.addAction(self.btn_log_in)
+
+        # заполняем settings menu
+        self.settings_menu.addAction(self.btn_settings)
+        self.settings_menu.addSeparator()
+        self.settings_menu.addAction(self.btn_currency_converter)
+
+        # заполняем help menu
+        self.help_menu.addAction(self.btn_reference)
+        self.help_menu.addAction(self.btn_description)
 
         # создаем для обращение к окну приложения
         self.centralWidget = QWidget()
         self.setCentralWidget(self.centralWidget)
         # Создаем listView для вывода информации о ставках
         self.listView = QtWidgets.QListView(self.centralWidget)
-        self.listView.setGeometry(QtCore.QRect(300, 20, 830, 600))
+        self.listView.setGeometry(QtCore.QRect(400, 50, 1050, 670))
         # выбираем настройки шрифта в listView
         font = QtGui.QFont()
         font.setPointSize(12)
@@ -50,47 +117,23 @@ class Window(QMainWindow, QObject, object):
         self.listView.setModel(self.model)
         self.listView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
 
-        # тестовая кнопка
-        self.btn_test = QtWidgets.QPushButton('Тестовая кнопка', self)
-        self.btn_test.setGeometry(QtCore.QRect(70, 10, 200, 30))
-        self.btn_test.setObjectName("btn_test")
-        self.btn_test.clicked.connect(self.test_do_bet)
-
-        # кнопка открывабщая окно с выбором порта
-        self.btn_set_port = QtWidgets.QPushButton('Выбор порта', self)
-        self.btn_set_port.setGeometry(QtCore.QRect(70, 110, 200, 30))
-        self.btn_set_port.setObjectName("btn_set_port")
-        self.btn_set_port.clicked.connect(self.open_port_choose_dialog)
-
-        # кнопка открывабщая окно с настройками
-        self.btn_set_settings = QtWidgets.QPushButton('Настройки', self)
-        self.btn_set_settings.setGeometry(QtCore.QRect(70, 210, 200, 30))
-        self.btn_set_settings.setObjectName("btn_set_settings")
-        self.btn_set_settings.clicked.connect(self.open_settings_dialog)
-
-        # кнопка открывабщая новое окно (для Log in)
-        self.btn_bk_logIn = QtWidgets.QPushButton('Авторизоваться', self)
-        self.btn_bk_logIn.setGeometry(QtCore.QRect(70, 310, 200, 30))
-        self.btn_bk_logIn.setObjectName("btn_bk_logIn")
-        #self.btn_bk_logIn.clicked.connect(self.open_logIn_dialog)
-
         # создаем кнопку окончания работы сканера
         self.btn_scaner_end = QtWidgets.QPushButton('Закончить сканирование', self)
-        self.btn_scaner_end.setGeometry((QtCore.QRect(70, 410, 200, 30)))
+        self.btn_scaner_end.setGeometry((QtCore.QRect(150, 500, 200, 30)))
         self.btn_scaner_end.setObjectName('btn_scaner_end')
         self.btn_scaner_end.clicked.connect(self.scanerEnd)
         self.btn_scaner_end.setEnabled(False)
 
         # создаем кнопку начало сканирования
         self.btn_scaner_start = QtWidgets.QPushButton('Начать сканирование', self)
-        self.btn_scaner_start.setGeometry(QtCore.QRect(70, 510, 200, 30))
+        self.btn_scaner_start.setGeometry(QtCore.QRect(150, 600, 200, 30))
         self.btn_scaner_start.setObjectName("btn_start_scan")
-        #self.btn_scaner_start.setEnabled(False)
+        self.btn_scaner_start.setEnabled(False)
         self.btn_scaner_start.clicked.connect(self.scanerStartInThread)
 
         # кнопка "Сделать ставку"
         self.btn_do_bet = QtWidgets.QPushButton('Сделать ставку', self)
-        self.btn_do_bet.setGeometry(QtCore.QRect(70, 610, 200, 30))
+        self.btn_do_bet.setGeometry(QtCore.QRect(150, 700, 200, 30))
         self.btn_do_bet.setObjectName("btn_do_bet")
         self.btn_do_bet.setEnabled(False)
         self.btn_do_bet.clicked.connect(self.get_cf_bet_limit)
@@ -106,13 +149,6 @@ class Window(QMainWindow, QObject, object):
         self.list_forks_auto_betting = []
 
 
-    def test_do_bet(self):
-        self.signal_to_send_bet_parameter_to_ggbet.emit({"fork_for_bet" : 0})
-        self.signal_to_send_bet_parameter_to_pinnacle.emit({"fork_for_bet" : 0})
-        self.is_ggbet_data_received = False
-        self.is_pinnacle_data_received = False
-        print('Hi')
-
     def save_cf_and_bet_limit_from_pinnacle(self, data):
         self.pinnacle_cf = None
         self.pinnacle_limit_sum = None
@@ -127,7 +163,19 @@ class Window(QMainWindow, QObject, object):
         self.is_pinnacle_data_received = True
 
         if self.is_ggbet_data_received:
-            self.bet_calc()
+            sum_two_bets = bet_calc(pin_cf=self.pinnacle_cf, ggbet_cf=self.ggbet_cf,
+                                    pin_limit=self.pinnacle_limit_sum, ggbet_limit=self.ggbet_limit_sum,
+                                    is_rub_pin=self.is_pinnacle_rub, is_rub_ggbet=self.is_ggbet_rub,
+                                    ggbet_exchange_rate=self.ggbet_exchange_rate,
+                                    pin_exchange_rate=self.pinnacle_exchange_rate,
+                                    settings_type_limit=self.limit_type,
+                                    settings_sum_limit=float(self.limit_sum))
+            if sum_two_bets != 0:
+                pinnacle_bet = sum_two_bets[0]
+                ggbet_bet = sum_two_bets
+                print(pinnacle_bet)
+                print(ggbet_bet)
+            #self.bet_calc()
 
     def save_cf_and_bet_limit_from_ggbet(self, data):
         self.ggbet_cf = None
@@ -143,7 +191,19 @@ class Window(QMainWindow, QObject, object):
         self.is_ggbet_data_received = True
 
         if self.is_pinnacle_data_received:
-            self.bet_calc()
+            sum_two_bets = bet_calc(pin_cf=self.pinnacle_cf, ggbet_cf=self.ggbet_cf,
+                                    pin_limit=self.pinnacle_limit_sum, ggbet_limit=self.ggbet_limit_sum,
+                                    is_rub_pin=self.is_pinnacle_rub, is_rub_ggbet=self.is_ggbet_rub,
+                                    ggbet_exchange_rate=self.ggbet_exchange_rate,
+                                    pin_exchange_rate=self.pinnacle_exchange_rate,
+                                    settings_type_limit=self.limit_type,
+                                    settings_sum_limit=float(self.limit_sum))
+            if sum_two_bets != 0:
+                pinnacle_bet = sum_two_bets[0]
+                ggbet_bet = sum_two_bets
+                print(pinnacle_bet)
+                print(ggbet_bet)
+            #self.bet_calc()
 
     def bet_calc(self):
 
@@ -162,8 +222,20 @@ class Window(QMainWindow, QObject, object):
             if ggbet_sum_bet > self.ggbet_limit_sum:
                 ggbet_sum_bet = self.ggbet_limit_sum
                 pinnacle_sum_bet = (ggbet_sum_bet * self.ggbet_cf) / self.pinnacle_cf
-            self.signal_do_bet_pinnacle.emit(int(math.ceil(pinnacle_sum_bet / 63)))
-            self.signal_do_bet_ggbet.emit(int(ggbet_sum_bet))
+            self.signal_do_bet_pinnacle.emit([int(math.ceil(pinnacle_sum_bet / 63)), self.pinnacle_cf])
+            self.signal_do_bet_ggbet.emit([int(ggbet_sum_bet), self.ggbet_cf])
+
+    def open_currency_converter_dialog(self):
+        dialog = DialogCurrencyConverter(self)
+        dialog.show()
+        if dialog.exec():
+            self.is_ggbet_rub = CurrencyConverter.is_ggbet_rub
+            self.is_pinnacle_rub = CurrencyConverter.is_pinnacle_rub
+            self.ggbet_exchange_rate = CurrencyConverter.ggbet_exchange_rate
+            self.pinnacle_exchange_rate = CurrencyConverter.pinnacle_exchange_rate
+            print('Данные по валютам получены')
+        else:
+            print('Cansel!')
 
     def open_port_choose_dialog(self):  # Открытие поля с выбором порта Octo Browser
         dialog = DialogToChoosePort(bk_name="ggbet", parent=self)
@@ -187,6 +259,12 @@ class Window(QMainWindow, QObject, object):
                 if pinnacle_port != ggbet_port:
                     self.open_pinnacle_driver()
                     self.open_ggbet_driver()
+                    self.btn_log_in.setEnabled(True)
+                    self.is_ports_open = True
+                    # открываем дроступ к кнопке начать сканирование по условию
+                    if self.is_settings_defined:
+                        self.btn_scaner_start.setEnabled(True)
+
 
     def open_ggbet_driver(self):
         self.ggbet_thread = QThread()
@@ -212,34 +290,6 @@ class Window(QMainWindow, QObject, object):
         self.signal_do_bet_pinnacle.connect(self.pinnacle_driver.betting)
 
         self.pinnacle_thread.start()
-
-    def open_port_choose_dialog(self):  # Открытие поля с выбором порта Octo Browser
-
-        # Открываем окно с вводом ссылки и выбором канала в окто для GGbet
-        dialog = DialogToChoosePort(bk_name="ggbet", parent=self)
-        dialog.show()
-        if dialog.exec():
-            print('Данные по GGBet получены!')
-            ggbet_link = ChoosePort.LINK
-            ggbet_port = ChoosePort.PORT
-            # Открываем окно с вводом ссылки и выбором канала в окто для Pinnacle
-            dialog = DialogToChoosePort(bk_name="pinnacle", parent=self)
-            dialog.show()
-            if dialog.exec():
-                print('Данные по PINNACLE получены!')
-                pinnacle_link = ChoosePort.LINK
-                pinnacle_port = ChoosePort.PORT
-
-                GGBetDriver.GGBET_PORT = ggbet_port
-                GGBetDriver.GGBET_LINK = ggbet_link
-                PinnacleDriver.PINNACLE_PORT = pinnacle_port
-                PinnacleDriver.PINNACLE_LINK = pinnacle_link
-
-                # Открываем браузеры
-                if pinnacle_port != ggbet_port:
-                    self.open_pinnacle_driver()
-                    self.open_ggbet_driver()
-                    self.btn_scaner_start.setEnabled(True)
 
     """_____Проставление вилки_____"""
     def auto_get_cf_bet_limit(self, fork):
@@ -290,7 +340,6 @@ class Window(QMainWindow, QObject, object):
         fork_now, fork_alive_now, forks_data = n
         for fork_data in forks_data:
             if self.is_auto_work:
-                print('Raund')
                 if fork_data['fork_id'] not in self.list_forks_auto_betting:
                     if fork_data['alive_sec'] > 2:
                         if fork_data['sport'] == 'esports.cs':
@@ -353,13 +402,14 @@ class Window(QMainWindow, QObject, object):
         ForkScanerClass.CHEK = False
 
     def scanerStartInThread(self):
-        if(self.auto_betting):
+        if self.auto_betting:
             self.is_auto_work = True
             self.btn_do_bet.setEnabled(False)
         else:
             self.is_auto_work = False
             self.btn_do_bet.setEnabled(True)
         ForkScanerClass.CHEK = True
+
         # Step 2: Create a QThread object
         self.thread = QThread()
         # Step 3: Create a worker object
@@ -384,6 +434,9 @@ class Window(QMainWindow, QObject, object):
             lambda: self.btn_scaner_end.setEnabled(False)
         )
         self.thread.finished.connect(
+            lambda: self.btn_do_bet.setEnabled(False)
+        )
+        self.thread.finished.connect(
             lambda: self.model.removeRows(0, self.model.rowCount())
         )
 
@@ -396,7 +449,13 @@ class Window(QMainWindow, QObject, object):
             self.limit_type = SetParamToBetting.limit_type
             self.limit_sum = SetParamToBetting.limit_sum
             self.auto_betting = SetParamToBetting.auto_bet
-            self.btn_do_bet.setEnabled(False)
+            self.how_do_bet = SetParamToBetting.how_do_bet
+
+            # настройки установлены
+            self.is_settings_defined = True
+            # открываем дроступ к кнопке начать сканирование по условию
+            if self.is_ports_open:
+                self.btn_scaner_start.setEnabled(True)
         else:
             print('Cansel!')
 

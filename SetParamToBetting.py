@@ -8,7 +8,7 @@ class DialogSettings(QDialog):
     def __init__(self,parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("Settings")
+        self.setWindowTitle("Настройки")
         self.resize(640,480)
 
         layout = QtWidgets.QVBoxLayout()
@@ -34,8 +34,8 @@ class DialogSettings(QDialog):
         layout_bet_sum = QtWidgets.QVBoxLayout()
         self.r_btn_total_sum = QtWidgets.QRadioButton('Максимальная общая сумма двух ставок')
         self.r_btn_total_sum.setChecked(True)
-        self.r_btn_pin_sum = QtWidgets.QRadioButton('Максимальная ставка на GGBet')
-        self.r_btn_ggbet_sum = QtWidgets.QRadioButton('Максимальная ставка на Pinnacle')
+        self.r_btn_pin_sum = QtWidgets.QRadioButton('Максимальная ставка на Pinnacle')
+        self.r_btn_ggbet_sum = QtWidgets.QRadioButton('Максимальная ставка на GGBet')
         self.sum_line = QtWidgets.QLineEdit()
         self.sum_line.setPlaceholderText('Введите сумму')
         layout_bet_sum.addWidget(self.r_btn_total_sum)
