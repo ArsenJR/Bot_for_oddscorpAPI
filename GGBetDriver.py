@@ -7,8 +7,8 @@ class ggbetDriver(QObject):
     signal_with_cf_and_bet_limit = pyqtSignal(list)
     def doWebDriver(self):
 
-        #self.profile_id = GGBET_PORT
-        self.profile_id = 'ef7feae4c45943c9b9285ddc3a152be0'
+        self.profile_id = GGBET_PORT
+        #self.profile_id = 'ef7feae4c45943c9b9285ddc3a152be0'
         #self.bk_link = GGBET_LINK
         self.bk_link = 'https://ggbet.name/ru/'
         self.port = get_debug_port(self.profile_id)
@@ -125,11 +125,13 @@ class ggbetDriver(QObject):
         time.sleep(1)
 
         # находим поле по title_name
-            # ключ для поиска областей с каждым типом ставки
+        # ключ для поиска областей с каждым типом ставки
         fields_class_name = '__app-TableHeader-table tableHeader__container___2othd'
-            # находим области каждого вида ставок
+        # находим области каждого вида ставок
+        print('Ищу поле')
         bet_fields = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(fields_class_name))
-            # ключ для доступа к названию типа ставки
+        print('Нашел поле')
+        # ключ для доступа к названию типа ставки
         key_bet_type_name = 'marketTable__header___mSHxT'
 
         for bet_field in bet_fields:
@@ -138,6 +140,7 @@ class ggbetDriver(QObject):
                 if bet_type_name == self.bet_title:
                     self.fields_with_our_bet = bet_field
                     print('GGBET:   Поле найдено')
+                    break
             except:
                 print("GGBET:   Не удалось найти поле со ставкой")
 
@@ -161,7 +164,6 @@ class ggbetDriver(QObject):
             print("GGBet:     Ставка закрыта")
             return
         # заключаем пари
-        time.sleep(1)
 
         key_coupons_class = 'sidebarToggler__btn___2wIhe'
 
@@ -171,17 +173,20 @@ class ggbetDriver(QObject):
             button_open_cupon.click()
         except:
             pass
-
-
-        key_btns_sum = 'amount__stake___2tO04 amount__is-desktop___3tNIb'
         time.sleep(1)
-        self.buttons_with_sum = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_btns_sum))
-        for btn in self.buttons_with_sum:
-            if btn.text == 'MAX':
-                print('GGBET:   Нашли кнопку макс ставки ')
-                btn.click()
-                key_max_bet_value = 'totalRow__value___1Ygme'
-                self.bet_limit = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_max_bet_value))[0].text
+
+        key_input_sum_class = 'input__input___tstQL'
+        try:
+            input_sum_lable = self.driver.find_element(By.XPATH, '//input[@class = "{}"]'.format(key_input_sum_class))
+            input_sum_lable.clear()
+            input_sum_lable.send_keys(10000000)
+
+            key_max_bet_value = 'totalRow__value___1Ygme'
+            print('Получаю лимит')
+            self.bet_limit = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_max_bet_value))[0].text
+        except:
+            print('Не получил лимит')
+            return
 
         print('GGBET:   ', self.cf, self.bet_limit.split("\n")[0])
         self.signal_with_cf_and_bet_limit.emit([self.cf, self.bet_limit.split("\n")[0]])
@@ -191,21 +196,44 @@ class ggbetDriver(QObject):
         print('GGBet: ', bet_sum_bet_cf)
         bet_sum = bet_sum_bet_cf[0]
         bet_kf = bet_sum_bet_cf[1]
-        # ключ строки для ввода суммы ставки
-        key_input_sum_class = 'input__input___tstQL'
-        try:
-            input_sum_lable = self.driver.find_element(By.XPATH, '//input[@class = "{}"]'.format(key_input_sum_class))
-            input_sum_lable.clear()
-            input_sum_lable.send_keys(bet_sum)
 
-            # ключ кнопки "Сделать ставку"
-            key_button_do_bet = '__app-PlaceBet-container placeBet__container___ejcC8'
+        # проверяем не упал ли коэффициент
+        print('Ищем кнопку')
+        button_with_our_bet = self.fields_with_our_bet.find_element(By.XPATH,
+                                                                    './/button[contains(@title, "{}")]'.format(
+                                                                        self.bet_name))
+
+        if button_with_our_bet:
+            cf_now = float(button_with_our_bet.text)
+            print(cf_now)
+            print('Нашел коэф')
+        else:
+            print('GGBet:    Не могу найти коэф')
+        print('ggbet Now:  ', cf_now)
+        print('ggbet', bet_sum)
+        if bet_kf <= cf_now:
+            # ключ строки для ввода суммы ставки
+            key_input_sum_class = 'input__input___tstQL'
+            try:
+                input_sum_lable = self.driver.find_element(By.XPATH, '//input[@class = "{}"]'.format(key_input_sum_class))
+                input_sum_lable.clear()
+                input_sum_lable.send_keys(bet_sum)
+
+                # ключ кнопки "Сделать ставку"
+                key_button_do_bet = '__app-PlaceBet-container placeBet__container___ejcC8'
 
 
-            button_do_bet = self.driver.find_element(By.XPATH, '//div[@class = "{}"]'.format(key_button_do_bet))
-            button_do_bet.click()
-        except:
-            pass
+                button_do_bet = self.driver.find_element(By.XPATH, '//div[@class = "{}"]'.format(key_button_do_bet))
+                ########################################
+                button_do_bet.click()
+                print('GGBET: Ставка сделана')
+                print('GGBET: ', cf_now, bet_sum, cf_now*bet_sum)
+            except:
+                print('GGBet:  Не получилось ввести')
+        else:
+            print('GGBet:   КФ изменился')
+            print(cf_now)
+
 
 
 def get_webdriver(port):

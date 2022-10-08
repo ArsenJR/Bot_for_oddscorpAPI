@@ -9,8 +9,8 @@ class pinnacleDriver(QObject):
     def doWebDriver(self):
 
         #### ИЗМЕНИТЬ ПРИ РАБОТЕ ПРОГРАММЫ ####
-        #self.profile_id = PINNACLE_PORT
-        self.profile_id = '83772dc46c3e4caba2a0902455dd422c'
+        self.profile_id = PINNACLE_PORT
+        #self.profile_id = '83772dc46c3e4caba2a0902455dd422c'
         #self.bk_link = PINNACLE_LINK
         self.bk_link = 'https://www.skynotes.bond/ru/'
         self.port = get_debug_port(self.profile_id)
@@ -136,7 +136,7 @@ class pinnacleDriver(QObject):
             self.get_cf_and_bet_sum()
 
             print(f'Pinnacle:   {self.cf}, {self.bet_limit}')
-            self.bet_limit = self.bet_limit.replace('RUB', ' ').replace(' ', '')
+            self.bet_limit = self.bet_limit.replace('USD', ' ').replace('RUB', ' ').replace(' ', '').replace(',', '')
             print(self.bet_limit)
             #print('Отправляю')
             self.signal_with_cf_and_bet_limit.emit([self.cf, self.bet_limit])
@@ -266,8 +266,8 @@ class pinnacleDriver(QObject):
         if sport == 'tennis':
             command_name += ' (Сеты)'
         # в поле с нашей ставкой ищем кнопку со свойством title = command_name
-        button_with_our_bet = fields_with_our_bet.find_element(By.XPATH, './/button[@title="{}"]'.format(command_name))
-        button_with_our_bet.click()
+        self.button_with_our_bet = fields_with_our_bet.find_element(By.XPATH, './/button[@title="{}"]'.format(command_name))
+        self.button_with_our_bet.click()
 
     def do_total_bet(self, BK_bet, fields_with_our_bet, sport):
         # ключ копки 'отображать больше'
@@ -285,10 +285,10 @@ class pinnacleDriver(QObject):
         if sport == 'tennis':
             BK_bet_name += ' геймы'
 
-        button_with_our_bet = fields_with_our_bet.find_element(By.XPATH,
+        self.button_with_our_bet = fields_with_our_bet.find_element(By.XPATH,
                                                                './/button[@title="{}"]'.format(BK_bet_name))
 
-        button_with_our_bet.click()
+        self.button_with_our_bet.click()
 
     def transform_total_bet(self, bet):
         # делаем список слов
@@ -322,9 +322,9 @@ class pinnacleDriver(QObject):
         # ключ копки 'отображать больше'
         key_button_image_more = 'style_toggleMarkets__18eR0'
         try:
-            button_image_more = fields_with_our_bet.find_element(By.XPATH,
+            self.button_image_more = fields_with_our_bet.find_element(By.XPATH,
                                                                  './/button[@class="{}"]'.format(key_button_image_more))
-            button_image_more.click()
+            self.button_image_more.click()
         except:
             pass
         # получаем значение свойства title кнопки с нужной ставкой
@@ -344,8 +344,8 @@ class pinnacleDriver(QObject):
                 bet_text = button_with_fora.text.split('\n')[0]
 
                 if bet_text == BK_bet_name:
-                    button_with_our_bet = button_with_fora
-                    button_with_our_bet.click()
+                    self.button_with_our_bet = button_with_fora
+                    self.button_with_our_bet.click()
         # если P2
         if command == 1:
             for fora_div in all_fora_div:
@@ -355,8 +355,8 @@ class pinnacleDriver(QObject):
                 bet_text = button_with_fora.text.split('\n')[0]
 
                 if bet_text == BK_bet_name:
-                    button_with_our_bet = button_with_fora
-                    button_with_our_bet.click()
+                    self.button_with_our_bet = button_with_fora
+                    self.button_with_our_bet.click()
 
     def get_command_number_in_handicap(self, bet):
         bet_to_transform = bet
@@ -394,10 +394,35 @@ class pinnacleDriver(QObject):
         bet_sum = bet_sum_bet_cf[0]
         bet_kf = bet_sum_bet_cf[1]
 
-        # находим поле и вводим туда сумму ставки
-        input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
-        input_sum_lable.clear()
-        input_sum_lable.send_keys(bet_sum)
+        self.button_with_our_bet.click()
+        time.sleep(1)
+        self.button_with_our_bet.click()
+
+        key_max_bet_sum = 'Betslip-StakeWinInput-MaxWagerLimit'
+        key_cf_value = 'style_price__2KUeC betslipCardPrice'
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum))))
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@class="{}"]'.format(key_cf_value))))
+        cf_now = self.driver.find_element(By.XPATH, '//div[@class="{}"]'.format(key_cf_value)).text
+        cf_now = float(cf_now)
+        print('pinca Now:  ', cf_now)
+        print('pinca', bet_sum)
+        if cf_now >= bet_kf:
+            # находим поле и вводим туда сумму ставки
+            input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
+            input_sum_lable.clear()
+            input_sum_lable.send_keys(bet_sum)
+
+
+            time.sleep(1)
+            # нажимаем кнопку Поставить
+            key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
+            btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
+            print(btn_do_bet)
+            btn_do_bet.click()
+            print('Pinnacle:  тавка сделана')
+            print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
+        else:
+            print('Pinnacle: кф изменился в меньшую сторону')
 
 
 def get_webdriver(port):

@@ -117,6 +117,12 @@ class Window(QMainWindow, QObject, object):
         self.listView.setModel(self.model)
         self.listView.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
 
+        self.btn_clear_list = QtWidgets.QPushButton('Очистить список', self)
+        self.btn_clear_list.setGeometry(QtCore.QRect(150, 400, 200, 30))
+        self.btn_clear_list.setObjectName("btn_clear_list")
+        self.btn_clear_list.setEnabled(True)
+        self.btn_clear_list.clicked.connect(self.clear_list)
+
         # создаем кнопку окончания работы сканера
         self.btn_scaner_end = QtWidgets.QPushButton('Закончить сканирование', self)
         self.btn_scaner_end.setGeometry((QtCore.QRect(150, 500, 200, 30)))
@@ -149,6 +155,9 @@ class Window(QMainWindow, QObject, object):
         self.list_forks_auto_betting = []
 
 
+    def clear_list(self):
+        self.list_forks_auto_betting = []
+
     def save_cf_and_bet_limit_from_pinnacle(self, data):
         self.pinnacle_cf = None
         self.pinnacle_limit_sum = None
@@ -172,10 +181,13 @@ class Window(QMainWindow, QObject, object):
                                     settings_sum_limit=float(self.limit_sum))
             if sum_two_bets != 0:
                 pinnacle_bet = sum_two_bets[0]
-                ggbet_bet = sum_two_bets
+                ggbet_bet = sum_two_bets[1]
+                print('Lets go')
                 print(pinnacle_bet)
                 print(ggbet_bet)
-            #self.bet_calc()
+
+                self.signal_do_bet_pinnacle.emit([int(pinnacle_bet), self.pinnacle_cf])
+                self.signal_do_bet_ggbet.emit([int(ggbet_bet), self.ggbet_cf])
 
     def save_cf_and_bet_limit_from_ggbet(self, data):
         self.ggbet_cf = None
@@ -194,16 +206,19 @@ class Window(QMainWindow, QObject, object):
             sum_two_bets = bet_calc(pin_cf=self.pinnacle_cf, ggbet_cf=self.ggbet_cf,
                                     pin_limit=self.pinnacle_limit_sum, ggbet_limit=self.ggbet_limit_sum,
                                     is_rub_pin=self.is_pinnacle_rub, is_rub_ggbet=self.is_ggbet_rub,
-                                    ggbet_exchange_rate=self.ggbet_exchange_rate,
-                                    pin_exchange_rate=self.pinnacle_exchange_rate,
+                                    ggbet_exchange_rate=float(self.ggbet_exchange_rate),
+                                    pin_exchange_rate=float(self.pinnacle_exchange_rate),
                                     settings_type_limit=self.limit_type,
                                     settings_sum_limit=float(self.limit_sum))
             if sum_two_bets != 0:
                 pinnacle_bet = sum_two_bets[0]
-                ggbet_bet = sum_two_bets
+                ggbet_bet = sum_two_bets[1]
+                print('Lets go')
                 print(pinnacle_bet)
                 print(ggbet_bet)
-            #self.bet_calc()
+
+                self.signal_do_bet_pinnacle.emit([int(pinnacle_bet), self.pinnacle_cf, int(ggbet_bet), self.ggbet_cf])
+                self.signal_do_bet_ggbet.emit([int(ggbet_bet), self.ggbet_cf, int(pinnacle_bet), self.pinnacle_cf])
 
     def bet_calc(self):
 
@@ -366,14 +381,14 @@ class Window(QMainWindow, QObject, object):
                             self.auto_get_cf_bet_limit(fork_data)
                             return
 
-                    if fork_data['sport'] == 'tennis':
+                    """if fork_data['sport'] == 'tennis':
                         if fork_data['bet_type'] == 'TOTALS':
                             self.is_auto_work = False
                             print('Нашел новую вилку tennis  ', fork_data['fork_id'])
                             self.list_forks_auto_betting.append(fork_data['fork_id'])
                             self.list_forks_auto_betting.append(fork_data['fork_id'])
                             self.auto_get_cf_bet_limit(fork_data)
-                            return
+                            return"""
 
 
         # получаем выбранный эллемент

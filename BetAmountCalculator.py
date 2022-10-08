@@ -8,6 +8,7 @@ def bet_calc(pin_cf, ggbet_cf, pin_limit, ggbet_limit,
     print('GGbet    ', ggbet_cf, ggbet_limit)
     print(is_rub_pin, is_rub_ggbet)
     print(pin_exchange_rate, ggbet_exchange_rate)
+    print(type(pin_exchange_rate), type(ggbet_exchange_rate))
     print(settings_type_limit, settings_sum_limit)
 
     total_prob = 1 / ggbet_cf + 1 / pin_cf
@@ -15,13 +16,15 @@ def bet_calc(pin_cf, ggbet_cf, pin_limit, ggbet_limit,
     if total_prob > 1:
         print('Данная вилка исчезла')
         return 0
-
+    pin_exchange_rate = float(pin_exchange_rate)
+    ggbet_exchange_rate = float(ggbet_exchange_rate)
     rub_pin_limit = pin_limit * pin_exchange_rate
     rub_ggbet_limit = ggbet_limit * ggbet_exchange_rate
 
     if not is_rub_pin and is_rub_ggbet:  # если пинка не в рублях, а бетка в рублях
-
+        print('start bet calc')
         if settings_type_limit == 1:  # задана общая сумма двух ставок
+            print('start type 1')
             # определяем, сколько ставить на пинку
             rub_pinnacle_sum_bet = math.ceil(1 / pin_cf / total_prob * float(settings_sum_limit))
             # если ставка больше лимита, то ставка равняется лимиту
@@ -103,6 +106,7 @@ def bet_calc(pin_cf, ggbet_cf, pin_limit, ggbet_limit,
         print('Этот раздел')
 
         if settings_type_limit == 1:  # задана общая сумма двух ставок
+            print('вход')
             # рассчитываем сумму для пинки
             pinnacle_sum_bet = math.ceil(1 / pin_cf / total_prob * float(settings_sum_limit))
             ggbet_sum_bet = math.ceil(1 / ggbet_cf / total_prob * float(settings_sum_limit))
