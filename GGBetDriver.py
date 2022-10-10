@@ -7,6 +7,7 @@ class ggbetDriver(QObject):
     signal_with_cf_and_bet_limit = pyqtSignal(list)
     def doWebDriver(self):
 
+        self.update_count = 0
         self.profile_id = GGBET_PORT
         #self.profile_id = 'ef7feae4c45943c9b9285ddc3a152be0'
         #self.bk_link = GGBET_LINK
@@ -60,6 +61,7 @@ class ggbetDriver(QObject):
         return bk_link + "/".join(bet_link.split('/')[4:])
 
     def do_bet(self, dict):
+        self.update_count = 0
         self.bet_parameter = dict
         """self.bet_parameter = {
             "fork_id": "caf709ede191ef38f3",
@@ -196,6 +198,10 @@ class ggbetDriver(QObject):
         print('GGBet: ', bet_sum_bet_cf)
         bet_sum = bet_sum_bet_cf[0]
         bet_kf = bet_sum_bet_cf[1]
+        exchange_rate = bet_sum_bet_cf[2]
+        another_bet_sum = bet_sum_bet_cf[3]
+        another_bet_kf = bet_sum_bet_cf[4]
+        another_exchange_rate = bet_sum_bet_cf[5]
 
         # проверяем не упал ли коэффициент
         print('Ищем кнопку')
@@ -233,6 +239,39 @@ class ggbetDriver(QObject):
         else:
             print('GGBet:   КФ изменился')
             print(cf_now)
+            new_total_prob = (1 / cf_now) + (1 / another_bet_kf)
+            win_sum = cf_now * bet_sum * exchange_rate
+            totals_bets_sum = bet_sum * exchange_rate + another_bet_sum
+            if win_sum >= totals_bets_sum:
+                input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
+                input_sum_lable.clear()
+                input_sum_lable.send_keys(bet_sum)
+                # нажимаем кнопку поставить
+                key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
+                btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
+                btn_do_bet.click()
+                print('Pinnacle:  cтавка сделана')
+                print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
+            elif new_total_prob <= 1:
+                bet_sum = math.ceil(((another_bet_sum * another_bet_kf * another_exchange_rate) / bet_kf) / exchange_rate)
+
+                input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
+                input_sum_lable.clear()
+                input_sum_lable.send_keys(bet_sum)
+                # нажимаем кнопку поставить
+                key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
+                btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
+                btn_do_bet.click()
+                print('Pinnacle:  cтавка сделана')
+                print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
+            else:
+                print('Вилка пропала')
+                if self.update_count < 5:
+                    time.sleep(1)
+                    self.update_count += 1
+                    self.betting(bet_sum_bet_cf)
+                else:
+                    print('Не получилось перекрыть, вилка исчезла')
 
 
 

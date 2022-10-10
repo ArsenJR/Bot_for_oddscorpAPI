@@ -16,6 +16,8 @@ import ChoosePort
 from CurrencyConverter import *
 import CurrencyConverter
 from BetAmountCalculator import bet_calc
+from SettingsForkParams import *
+import SettingsForkParams
 
 class Window(QMainWindow, QObject, object):
 
@@ -43,6 +45,26 @@ class Window(QMainWindow, QObject, object):
         self.is_pinnacle_rub = True
         self.ggbet_exchange_rate = 1
         self.pinnacle_exchange_rate = 1
+        # настройки фильтра вилок
+        self.sport_type_list = []
+        self.bet_type_list = []
+        self.profit_min = None
+        self.profit_max = None
+        self.loose_max = None
+        self.second_do_bet = None
+        self.count_forks_in_match = None
+        self.second_alive_to_betting = None
+
+        # логические значения (приняты ли данные о кф и лимите ставки из бк)
+        self.is_ggbet_data_received = False
+        self.is_pinnacle_data_received = False
+
+        # лист с id нужных вилок
+        self.list_forks_auto_betting = []
+
+        # словарь (id события : кол-во проставленных вилок)
+        self.count_successful_in_match = {}
+
 
     def setupUi(self):
         self.setWindowTitle("Сканер вилок с автоматизированным проставлением")
@@ -72,6 +94,9 @@ class Window(QMainWindow, QObject, object):
         self.btn_settings.setStatusTip("Settings")
         self.btn_settings.triggered.connect(self.open_settings_dialog)
         # кнопка с настройкой валюты
+        self.btn_fork_filter = QAction("&Параметры фильтра", self)
+        self.btn_fork_filter.setStatusTip("Setting filter")
+        self.btn_fork_filter.triggered.connect(self.open_fork_filter_settings)
         self.btn_currency_converter = QAction("&Конвертер валют", self)
         self.btn_currency_converter.setStatusTip("Currency Converter")
         self.btn_currency_converter.triggered.connect(self.open_currency_converter_dialog)
@@ -94,6 +119,7 @@ class Window(QMainWindow, QObject, object):
         # заполняем settings menu
         self.settings_menu.addAction(self.btn_settings)
         self.settings_menu.addSeparator()
+        self.settings_menu.addAction(self.btn_fork_filter)
         self.settings_menu.addAction(self.btn_currency_converter)
 
         # заполняем help menu
@@ -186,8 +212,12 @@ class Window(QMainWindow, QObject, object):
                 print(pinnacle_bet)
                 print(ggbet_bet)
 
-                self.signal_do_bet_pinnacle.emit([int(pinnacle_bet), self.pinnacle_cf])
-                self.signal_do_bet_ggbet.emit([int(ggbet_bet), self.ggbet_cf])
+                self.signal_do_bet_pinnacle.emit(
+                    [int(pinnacle_bet), self.pinnacle_cf, pinnacle_exchange_rate, int(ggbet_bet), self.ggbet_cf,
+                     ggbet_exchange_rate])
+                self.signal_do_bet_ggbet.emit(
+                    [int(ggbet_bet), self.ggbet_cf, ggbet_exchange_rate, int(pinnacle_bet), self.pinnacle_cf,
+                     pinnacle_exchange_rate])
 
     def save_cf_and_bet_limit_from_ggbet(self, data):
         self.ggbet_cf = None
@@ -217,8 +247,12 @@ class Window(QMainWindow, QObject, object):
                 print(pinnacle_bet)
                 print(ggbet_bet)
 
-                self.signal_do_bet_pinnacle.emit([int(pinnacle_bet), self.pinnacle_cf, int(ggbet_bet), self.ggbet_cf])
-                self.signal_do_bet_ggbet.emit([int(ggbet_bet), self.ggbet_cf, int(pinnacle_bet), self.pinnacle_cf])
+                self.signal_do_bet_pinnacle.emit(
+                    [int(pinnacle_bet), self.pinnacle_cf, pinnacle_exchange_rate, int(ggbet_bet), self.ggbet_cf,
+                     ggbet_exchange_rate])
+                self.signal_do_bet_ggbet.emit(
+                    [int(ggbet_bet), self.ggbet_cf, ggbet_exchange_rate, int(pinnacle_bet), self.pinnacle_cf,
+                     pinnacle_exchange_rate])
 
     def bet_calc(self):
 
@@ -351,35 +385,32 @@ class Window(QMainWindow, QObject, object):
 
 
     """_____Работа сканера в потоке_____"""
-    def reportProgress(self, n):
-        fork_now, fork_alive_now, forks_data = n
-        for fork_data in forks_data:
-            if self.is_auto_work:
-                if fork_data['fork_id'] not in self.list_forks_auto_betting:
-                    if fork_data['alive_sec'] > 2:
-                        if fork_data['sport'] == 'esports.cs':
-                            self.is_auto_work = False
-                            print('Нашел новую вилку CS  ', fork_data['fork_id'])
-                            self.list_forks_auto_betting.append(fork_data['fork_id'])
-                            self.btn_scaner_end.click()
-                            self.auto_get_cf_bet_limit(fork_data)
-                            return
+    def auto_scan_forks(self, fork_list):           # ф-ция автоматического проставления
+        for fork_data in fork_list:
+            if not self.is_auto_work:
+                return
+            # смотрим есть ли сбитие из вилки в списке
+            if fork_data['event_id'] not in self.count_successful_in_match:
+                self.count_successful_in_match[fork_data['event_id']] = 0
 
-                        if fork_data['sport'] == 'esports.dota2':
-                            self.is_auto_work = False
-                            print('Нашел новую вилку DOTA2  ', fork_data['fork_id'])
-                            self.list_forks_auto_betting.append(fork_data['fork_id'])
-                            self.btn_scaner_end.click()
-                            self.auto_get_cf_bet_limit(fork_data)
-                            return
-
-                        if fork_data['sport'] == 'esports.lol':
-                            self.is_auto_work = False
-                            print('Нашел новую вилку LOL  ', fork_data['fork_id'])
-                            self.list_forks_auto_betting.append(fork_data['fork_id'])
-                            self.list_forks_auto_betting.append(fork_data['fork_id'])
-                            self.auto_get_cf_bet_limit(fork_data)
-                            return
+                # проверка на параметр макс. кол-ва ставок в собитии
+            if self.count_successful_in_match[fork_data['event_id']] < self.count_forks_in_match:
+                    # проверяем чтобы прибыль от вилки была в заданном диапазоне
+                if fork_data['income'] >= self.profit_min and fork_data['income'] <= self.profit_max:
+                        # проверяем чтобы вилка существовала заданное мин время
+                    if fork_data['alive_sec'] >= self.second_alive_to_betting:
+                            # тип спорта в заданном
+                        if fork_data['sport'] in self.sport_type_list:
+                                # тип ставки в заданном
+                            if fork_data['bet_type'] in self.bet_type_list:
+                                # выклю автопроставление
+                                self.is_auto_work = False
+                                print(f'Нашел новую вилку {fork_data["sport"]}  ', fork_data['fork_id'])
+                                # начинаем ставить и выключаем сканнер
+                                self.list_forks_auto_betting.append(fork_data['fork_id'])
+                                self.btn_scaner_end.click()
+                                self.auto_get_cf_bet_limit(fork_data)
+                                return
 
                     """if fork_data['sport'] == 'tennis':
                         if fork_data['bet_type'] == 'TOTALS':
@@ -389,7 +420,13 @@ class Window(QMainWindow, QObject, object):
                             self.list_forks_auto_betting.append(fork_data['fork_id'])
                             self.auto_get_cf_bet_limit(fork_data)
                             return"""
+        ...
+    def reportProgress(self, n):
+        fork_now, fork_alive_now, forks_data = n
 
+        # автоматическое проставление
+        if self.is_auto_work:
+            self.auto_scan_forks(forks_data)
 
         # получаем выбранный эллемент
         indef_of_selected_item = self.listView.selectionModel().selectedIndexes()
@@ -471,6 +508,31 @@ class Window(QMainWindow, QObject, object):
             # открываем дроступ к кнопке начать сканирование по условию
             if self.is_ports_open:
                 self.btn_scaner_start.setEnabled(True)
+        else:
+            print('Cansel!')
+
+    def open_fork_filter_settings(self):
+        self.scanerEnd()
+        dialog = DialogFilterSettings(self)
+        if dialog.exec():
+            print('Данные получены!')
+            self.bet_type_list = SettingsForkParams.BET_TYPE_LIST
+            self.sport_type_list = SettingsForkParams.SPORT_TYPE_LIST
+            self.profit_min = SettingsForkParams.PROFIT_MIN
+            self.profit_max = SettingsForkParams.PROFIT_MAX
+            self.loose_max = SettingsForkParams.LOOSE_MAX
+            self.second_do_bet = SettingsForkParams.SECOND_DO_BET
+            self.second_alive_to_betting = SettingsForkParams.SECOND_ALIVE_TO_BETTING
+            self.count_forks_in_match = SettingsForkParams.СOUNT_FORKS_IN_MATCH
+
+            print('Типы спорта: ', self.bet_type_list)
+            print('Типы ставок: ', self.sport_type_list)
+            print('Диапазон прибыли вилок: ', self.profit_min, '% -', self.profit_max, '%')
+            print('Масимальный разрешенный убыток: ', self.loose_max, '%')
+            print('Сколько сек бот старается сделать ставку: ', self.second_do_bet)
+            print('Количество вилок в матче: ', self.count_forks_in_match)
+            print('Время существования вилки для проставления: ', self.second_alive_to_betting)
+
         else:
             print('Cansel!')
 
