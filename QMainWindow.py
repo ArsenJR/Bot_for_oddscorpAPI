@@ -214,10 +214,11 @@ class Window(QMainWindow, QObject, object):
 
                 self.signal_do_bet_pinnacle.emit(
                     [int(pinnacle_bet), self.pinnacle_cf, pinnacle_exchange_rate, int(ggbet_bet), self.ggbet_cf,
-                     ggbet_exchange_rate])
+                     ggbet_exchange_rate, self.second_do_bet, self.loose_max])
+
                 self.signal_do_bet_ggbet.emit(
                     [int(ggbet_bet), self.ggbet_cf, ggbet_exchange_rate, int(pinnacle_bet), self.pinnacle_cf,
-                     pinnacle_exchange_rate])
+                     pinnacle_exchange_rate, self.second_do_bet, self.loose_max])
 
     def save_cf_and_bet_limit_from_ggbet(self, data):
         self.ggbet_cf = None
@@ -249,10 +250,10 @@ class Window(QMainWindow, QObject, object):
 
                 self.signal_do_bet_pinnacle.emit(
                     [int(pinnacle_bet), self.pinnacle_cf, pinnacle_exchange_rate, int(ggbet_bet), self.ggbet_cf,
-                     ggbet_exchange_rate])
+                     ggbet_exchange_rate, self.second_do_bet, self.loose_max])
                 self.signal_do_bet_ggbet.emit(
                     [int(ggbet_bet), self.ggbet_cf, ggbet_exchange_rate, int(pinnacle_bet), self.pinnacle_cf,
-                     pinnacle_exchange_rate])
+                     pinnacle_exchange_rate, self.second_do_bet, self.loose_max])
 
     def bet_calc(self):
 

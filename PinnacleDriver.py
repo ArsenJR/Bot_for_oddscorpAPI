@@ -391,6 +391,34 @@ class pinnacleDriver(QObject):
             bet_name = '+' + bet_name
         return bet_name
 
+    def get_cf(self):
+        key_max_bet_sum = 'Betslip-StakeWinInput-MaxWagerLimit'
+        key_cf_value = 'style_price__2KUeC betslipCardPrice'
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum))))
+        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@class="{}"]'.format(key_cf_value))))
+        cf = self.driver.find_element(By.XPATH, '//div[@class="{}"]'.format(key_cf_value)).text
+        cf = float(cf)
+        return cf
+
+    def do_bet_by_sum(self, bet_value):
+
+        self.button_with_our_bet.click()
+        time.sleep(1)
+        self.button_with_our_bet.click()
+
+        # находим поле и вводим туда сумму ставки
+        input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
+        input_sum_lable.clear()
+        input_sum_lable.send_keys(bet_value)
+
+        time.sleep(1)
+        # нажимаем кнопку Поставить
+        key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
+        btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
+        #btn_do_bet.click()
+
+
+
     def betting(self,bet_sum_bet_cf):
         print('Pinnacle: ', bet_sum_bet_cf)
         bet_sum = bet_sum_bet_cf[0]
@@ -399,69 +427,67 @@ class pinnacleDriver(QObject):
         another_bet_sum = bet_sum_bet_cf[3]
         another_bet_kf = bet_sum_bet_cf[4]
         another_exchange_rate = bet_sum_bet_cf[5]
+        seconds_do_bet = bet_sum_bet_cf[6]
+        loose_max = bet_sum_bet_cf[7]
 
-        self.button_with_our_bet.click()
-        time.sleep(1)
-        self.button_with_our_bet.click()
+        print('Pinnacle: сек пытается поставить -', seconds_do_bet, type(seconds_do_bet))
 
-        key_max_bet_sum = 'Betslip-StakeWinInput-MaxWagerLimit'
-        key_cf_value = 'style_price__2KUeC betslipCardPrice'
-        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum))))
-        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@class="{}"]'.format(key_cf_value))))
-        cf_now = self.driver.find_element(By.XPATH, '//div[@class="{}"]'.format(key_cf_value)).text
-        cf_now = float(cf_now)
+        cf_now = self.get_cf()
         print('pinca Now:  ', cf_now)
         print('pinca', bet_sum)
         if cf_now >= bet_kf:
-            # находим поле и вводим туда сумму ставки
-            input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
-            input_sum_lable.clear()
-            input_sum_lable.send_keys(bet_sum)
-
-
-            time.sleep(1)
-            # нажимаем кнопку Поставить
-            key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
-            btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
-            print(btn_do_bet)
-            btn_do_bet.click()
+            self.do_bet_by_sum(bet_sum)
             print('Pinnacle:  cтавка сделана')
             print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
         else:
             print('Pinnacle: кф изменился в меньшую сторону')
             new_total_prob = (1 / cf_now) + (1 / another_bet_kf)
-            win_sum = cf_now * bet_sum *exchange_rate
-            totals_bets_sum = bet_sum*exchange_rate+another_bet_sum
+            win_sum = cf_now * bet_sum * exchange_rate
+            totals_bets_sum = bet_sum * exchange_rate + another_bet_sum
             if win_sum >= totals_bets_sum:
-                input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
-                input_sum_lable.clear()
-                input_sum_lable.send_keys(bet_sum)
-                # нажимаем кнопку поставить
-                key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
-                btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
-                btn_do_bet.click()
+                self.do_bet_by_sum(bet_sum)
                 print('Pinnacle:  cтавка сделана')
                 print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
             elif new_total_prob <= 1:
-                bet_sum = math.ceil(((another_bet_sum * another_bet_kf * another_exchange_rate) / bet_kf) / exchange_rate)
-
-                input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
-                input_sum_lable.clear()
-                input_sum_lable.send_keys(bet_sum)
-                # нажимаем кнопку поставить
-                key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
-                btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
-                btn_do_bet.click()
+                bet_sum = math.ceil(((another_bet_sum * another_bet_kf * another_exchange_rate) / cf_now) / exchange_rate)
+                self.do_bet_by_sum(bet_sum)
                 print('Pinnacle:  cтавка сделана')
                 print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
+                return
             else:
-                print('Вилка пропала')
-                if self.update_count < 5:
+                print('Вилка пропала, пытаюсь переставить')
+                for i in range(seconds_do_bet):
+                    print('Pinnacle: пытаюсь переставить, попытка №', i)
                     time.sleep(1)
-                    self.update_count += 1
-                    self.betting(bet_sum_bet_cf)
-                else:
-                    print('Не получилось перекрыть, вилка исчезла')
+                    cf_now_i = self.get_cf()
+                    total_prob_now = (1 / cf_now_i) + (1 / another_bet_kf)
+                    if total_prob_now <= 1:
+                        bet_sum = math.ceil(
+                            ((another_bet_sum * another_bet_kf * another_exchange_rate) / cf_now_i) / exchange_rate)
+                        self.do_bet_by_sum(bet_sum)
+                        print('Pinnacle:  cтавка сделана')
+                        print('Pinnacle: ', cf_now_i, bet_sum, cf_now_i * bet_sum)
+
+                        return
+
+                # пытаемся поставить в минус (заданный параметр)
+                print('Пытаюсь поставить в минус', loose_max, '%')
+                cf_now = self.get_cf()
+                income_now = ((cf_now * another_bet_kf) / (cf_now + another_bet_kf)) * 100
+
+                if income_now >= (100-loose_max):
+                    bet_sum = math.ceil(
+                        ((another_bet_sum * another_bet_kf * another_exchange_rate) / cf_now_i) / exchange_rate)
+                    self.do_bet_by_sum(bet_sum)
+                    print('Pinnacle:  cтавка сделана')
+                    print('Pinnacle: ', cf_now_i, bet_sum, cf_now_i * bet_sum)
+
+                    return
+
+
+
+
+                print('Не получилось перекрыть, вилка исчезла')
 
 
 

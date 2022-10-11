@@ -202,6 +202,7 @@ class ggbetDriver(QObject):
         another_bet_sum = bet_sum_bet_cf[3]
         another_bet_kf = bet_sum_bet_cf[4]
         another_exchange_rate = bet_sum_bet_cf[5]
+        seconds_do_bet = bet_sum_bet_cf[6]
 
         # проверяем не упал ли коэффициент
         print('Ищем кнопку')
