@@ -19,27 +19,31 @@ from BetAmountCalculator import bet_calc
 from SettingsForkParams import *
 import SettingsForkParams
 
-class Window(QMainWindow, QObject, object):
 
+class Window(QMainWindow, QObject, object):
     signal_to_logIn_ggbet = pyqtSignal(list)
     signal_to_logIn_pinnacle = pyqtSignal(list)
     signal_to_send_bet_parameter_to_ggbet = pyqtSignal(dict)
     signal_to_send_bet_parameter_to_pinnacle = pyqtSignal(dict)
     signal_do_bet_pinnacle = pyqtSignal(list)
     signal_do_bet_ggbet = pyqtSignal(list)
+    signal_to_close_kupon_ggbet = pyqtSignal(bool)
+    signal_to_close_kupon_pinnacle = pyqtSignal(bool)
+    signal_start_page_pinnacle = pyqtSignal()
+    signal_start_page_ggbet = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi()
 
         # определяем переменные класса
-        self.auto_betting = False   # автоматическое проставление
+        self.auto_betting = False  # автоматическое проставление
         self.is_ports_open = False  # открыты ли порты
-        self.is_settings_defined = False    # заданы ли настройки
-        self.auto_betting = False   # автоматическое проставление
-        self.limit_type = None      # по какой бк брать фиксированную ставку
-        self.limit_sum = None       # фиксированная сумма ставки (общая или в одной из бк)
-        self.how_do_bet = None      # как ставить (какую первую)
+        self.is_settings_defined = False  # заданы ли настройки
+        self.auto_betting = False  # автоматическое проставление
+        self.limit_type = None  # по какой бк брать фиксированную ставку
+        self.limit_sum = None  # фиксированная сумма ставки (общая или в одной из бк)
+        self.how_do_bet = None  # как ставить (какую первую)
         # данные по валютам в бк
         self.is_ggbet_rub = True
         self.is_pinnacle_rub = True
@@ -64,7 +68,6 @@ class Window(QMainWindow, QObject, object):
 
         # словарь (id события : кол-во проставленных вилок)
         self.count_successful_in_match = {}
-
 
     def setupUi(self):
         self.setWindowTitle("Сканер вилок с автоматизированным проставлением")
@@ -100,7 +103,6 @@ class Window(QMainWindow, QObject, object):
         self.btn_currency_converter = QAction("&Конвертер валют", self)
         self.btn_currency_converter.setStatusTip("Currency Converter")
         self.btn_currency_converter.triggered.connect(self.open_currency_converter_dialog)
-
 
         # кнопка со справкой
         self.btn_reference = QAction("&Справка", self)
@@ -180,7 +182,6 @@ class Window(QMainWindow, QObject, object):
         # лист с id нужных вилок
         self.list_forks_auto_betting = []
 
-
     def clear_list(self):
         self.list_forks_auto_betting = []
 
@@ -213,12 +214,18 @@ class Window(QMainWindow, QObject, object):
                 print(ggbet_bet)
 
                 self.signal_do_bet_pinnacle.emit(
-                    [int(pinnacle_bet), self.pinnacle_cf, pinnacle_exchange_rate, int(ggbet_bet), self.ggbet_cf,
-                     ggbet_exchange_rate, self.second_do_bet, self.loose_max])
-
+                    [int(pinnacle_bet), self.pinnacle_cf, float(self.pinnacle_exchange_rate), int(ggbet_bet),
+                     self.ggbet_cf,
+                     float(self.ggbet_exchange_rate), self.second_do_bet, self.loose_max])
                 self.signal_do_bet_ggbet.emit(
-                    [int(ggbet_bet), self.ggbet_cf, ggbet_exchange_rate, int(pinnacle_bet), self.pinnacle_cf,
-                     pinnacle_exchange_rate, self.second_do_bet, self.loose_max])
+                    [int(ggbet_bet), self.ggbet_cf, float(self.ggbet_exchange_rate), int(pinnacle_bet),
+                     self.pinnacle_cf,
+                     float(self.pinnacle_exchange_rate), self.second_do_bet, self.loose_max])
+            else:
+                print('Переходим на главную страницу в двух бк')
+                # self.signal_to_close_kupon_ggbet.emit(False)
+                # self.signal_to_close_kupon_pinnacle.emit(False)
+                self.restart_bots()
 
     def save_cf_and_bet_limit_from_ggbet(self, data):
         self.ggbet_cf = None
@@ -249,11 +256,18 @@ class Window(QMainWindow, QObject, object):
                 print(ggbet_bet)
 
                 self.signal_do_bet_pinnacle.emit(
-                    [int(pinnacle_bet), self.pinnacle_cf, pinnacle_exchange_rate, int(ggbet_bet), self.ggbet_cf,
-                     ggbet_exchange_rate, self.second_do_bet, self.loose_max])
+                    [int(pinnacle_bet), self.pinnacle_cf, float(self.pinnacle_exchange_rate), int(ggbet_bet),
+                     self.ggbet_cf,
+                     float(self.ggbet_exchange_rate), self.second_do_bet, self.loose_max])
                 self.signal_do_bet_ggbet.emit(
-                    [int(ggbet_bet), self.ggbet_cf, ggbet_exchange_rate, int(pinnacle_bet), self.pinnacle_cf,
-                     pinnacle_exchange_rate, self.second_do_bet, self.loose_max])
+                    [int(ggbet_bet), self.ggbet_cf, float(self.ggbet_exchange_rate), int(pinnacle_bet),
+                     self.pinnacle_cf,
+                     float(self.pinnacle_exchange_rate), self.second_do_bet, self.loose_max])
+            else:
+                print('Отправляем сигнал False для закрытия купона')
+                # self.signal_to_close_kupon_ggbet.emit(False)
+                # self.signal_to_close_kupon_pinnacle.emit(False)
+                self.restart_bots()
 
     def bet_calc(self):
 
@@ -315,33 +329,51 @@ class Window(QMainWindow, QObject, object):
                     if self.is_settings_defined:
                         self.btn_scaner_start.setEnabled(True)
 
-
     def open_ggbet_driver(self):
         self.ggbet_thread = QThread()
         self.ggbet_driver = ggbetDriver()
         self.ggbet_driver.moveToThread(self.ggbet_thread)
         self.ggbet_thread.started.connect(self.ggbet_driver.doWebDriver)
-        #self.signal_to_logIn_ggbet.connect(self.ggbet_driver.log_in)
+        # self.signal_to_logIn_ggbet.connect(self.ggbet_driver.log_in)
         self.signal_to_send_bet_parameter_to_ggbet.connect(self.ggbet_driver.do_bet)
         self.ggbet_driver.signal_with_cf_and_bet_limit.connect(self.save_cf_and_bet_limit_from_ggbet)
         self.signal_do_bet_ggbet.connect(self.ggbet_driver.betting)
+        self.signal_to_close_kupon_ggbet.connect(self.ggbet_driver.betting_report)
+
+        # сигнал отправляется при ошибке в получении данных (кф и лимит ставки), который запускает переход на главную страницу в двух канторах
+        self.ggbet_driver.signal_error_in_getting_data.connect(self.restart_bots)
+        # сигнал запускает функцию перехода на главную страницу букмекерской конторы (удаляет купон)
+        self.signal_start_page_ggbet.connect(self.ggbet_driver.go_to_start_page)
 
         self.ggbet_thread.start()
-
 
     def open_pinnacle_driver(self):
         self.pinnacle_thread = QThread()
         self.pinnacle_driver = pinnacleDriver()
         self.pinnacle_driver.moveToThread(self.pinnacle_thread)
         self.pinnacle_thread.started.connect(self.pinnacle_driver.doWebDriver)
-        #self.signal_to_logIn_pinnacle.connect(self.pinnacle_driver.log_in)
+        # self.signal_to_logIn_pinnacle.connect(self.pinnacle_driver.log_in)
         self.signal_to_send_bet_parameter_to_pinnacle.connect(self.pinnacle_driver.do_bet)
         self.pinnacle_driver.signal_with_cf_and_bet_limit.connect(self.save_cf_and_bet_limit_from_pinnacle)
         self.signal_do_bet_pinnacle.connect(self.pinnacle_driver.betting)
+        self.signal_to_close_kupon_pinnacle.connect(self.pinnacle_driver.betting_report)
+        # сигнал отправляется при ошибке в получении данных (кф и лимит ставки), который запускает переход на главную страницу в двух канторах
+        self.pinnacle_driver.signal_error_in_getting_data.connect(self.restart_bots)
+        # сигнал запускает функцию перехода на главную страницу букмекерской конторы (удаляет купон)
+        self.signal_start_page_pinnacle.connect(self.pinnacle_driver.go_to_start_page)
 
         self.pinnacle_thread.start()
 
+    def restart_bots(self):
+        # ggbet на стартовую страницу
+        # pinnacle на стартовую страницу
+        self.signal_start_page_pinnacle.emit()
+        self.signal_start_page_ggbet.emit()
+
+        print()
+
     """_____Проставление вилки_____"""
+
     def auto_get_cf_bet_limit(self, fork):
         fork_for_bet = fork
         self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet)
@@ -384,9 +416,9 @@ class Window(QMainWindow, QObject, object):
             except:
                 print("Вилка пропала")
 
-
     """_____Работа сканера в потоке_____"""
-    def auto_scan_forks(self, fork_list):           # ф-ция автоматического проставления
+
+    def auto_scan_forks(self, fork_list):  # ф-ция автоматического проставления
         for fork_data in fork_list:
             if not self.is_auto_work:
                 return
@@ -396,13 +428,13 @@ class Window(QMainWindow, QObject, object):
 
                 # проверка на параметр макс. кол-ва ставок в собитии
             if self.count_successful_in_match[fork_data['event_id']] < self.count_forks_in_match:
-                    # проверяем чтобы прибыль от вилки была в заданном диапазоне
+                # проверяем чтобы прибыль от вилки была в заданном диапазоне
                 if fork_data['income'] >= self.profit_min and fork_data['income'] <= self.profit_max:
-                        # проверяем чтобы вилка существовала заданное мин время
+                    # проверяем чтобы вилка существовала заданное мин время
                     if fork_data['alive_sec'] >= self.second_alive_to_betting:
-                            # тип спорта в заданном
+                        # тип спорта в заданном
                         if fork_data['sport'] in self.sport_type_list:
-                                # тип ставки в заданном
+                            # тип ставки в заданном
                             if fork_data['bet_type'] in self.bet_type_list:
                                 # выклю автопроставление
                                 self.is_auto_work = False
@@ -422,6 +454,7 @@ class Window(QMainWindow, QObject, object):
                             self.auto_get_cf_bet_limit(fork_data)
                             return"""
         ...
+
     def reportProgress(self, n):
         fork_now, fork_alive_now, forks_data = n
 
@@ -494,6 +527,7 @@ class Window(QMainWindow, QObject, object):
         )
 
     """_____Настройки проставления_____"""
+
     def open_settings_dialog(self):
         self.scanerEnd()
         dialog = DialogSettings(self)
@@ -538,6 +572,7 @@ class Window(QMainWindow, QObject, object):
             print('Cansel!')
 
     """_____Log In BK_____"""
+
     def open_logIn_dialog(self):
         self.scanerEnd()
         ggbet_dialog = DialogToLogIn("GGbet")
@@ -557,12 +592,11 @@ class Window(QMainWindow, QObject, object):
         else:
             print("Cancel!")
 
-
     """
-        
-    
 
-    
+
+
+
 
     def bet_calc(self, dict):
         if dict['BK1_name'] == 'gg_bet':
@@ -593,7 +627,7 @@ class Window(QMainWindow, QObject, object):
 
 
 
-    
+
 
     def test_fu(self):
         print('Go')
@@ -627,24 +661,26 @@ class Window(QMainWindow, QObject, object):
 
 
 
-    
-
-
-
-    
-    
-
-    
 
 
 
 
-    
+
+
+
+
+
+
+
+
+
 
 
 
 
 """
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = Window()

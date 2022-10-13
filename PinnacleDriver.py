@@ -6,6 +6,9 @@ PINNACLE_LINK = ''
 
 class pinnacleDriver(QObject):
     signal_with_cf_and_bet_limit = pyqtSignal(list)
+    signal_error_in_getting_data = pyqtSignal()
+
+    #
     def doWebDriver(self):
 
         self.update_list = 0
@@ -24,7 +27,7 @@ class pinnacleDriver(QObject):
                 """
         })
         self.driver.maximize_window()
-        self.wait = WebDriverWait(self.driver, 500)
+        self.wait = WebDriverWait(self.driver, 10)
         self.driver.get(self.bk_link)
 
         key_element = 'style_selected__FPAJz undefined style_selected__FPAJz'
@@ -114,13 +117,19 @@ class pinnacleDriver(QObject):
 
         # дожидаемся прогрузки страницы
         key_loading = 'style_button__2EZ2H style_selected__fYXri'
-        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//button[@class="{}"]'.format(key_loading))))
+        try:
+            self.wait.until(EC.visibility_of_element_located((By.XPATH, '//button[@class="{}"]'.format(key_loading))))
+        except:
+            print('Pinnacle:  Не дождался кнопки "Все"')
+            self.signal_error_in_getting_data.emit()
+            return
 
         try:
             self.bets_field = self.get_field_by_name(bet_type, bet_name, sport_type)
             print('Pinnacle:   Поле найдено')
         except:
             print('Pinnacle:   Не удалось найти поле со ставкой')
+            self.signal_error_in_getting_data.emit()
             return
         try:
             if bet_type == 'SET_WIN' or bet_type == 'WIN':
@@ -134,16 +143,15 @@ class pinnacleDriver(QObject):
                 self.do_handicap_bet(bet_name, self.bets_field)
                 print('Pinnacle:   Открыл купон')
 
-
             self.get_cf_and_bet_sum()
 
             print(f'Pinnacle:   {self.cf}, {self.bet_limit}')
             self.bet_limit = self.bet_limit.replace('USD', ' ').replace('RUB', ' ').replace(' ', '').replace(',', '')
             print(self.bet_limit)
-            #print('Отправляю')
             self.signal_with_cf_and_bet_limit.emit([self.cf, self.bet_limit])
         except:
             print('Pinnacle:   Не получилось поставить!(((')
+            self.signal_error_in_getting_data.emit()
 
 
 
@@ -152,7 +160,13 @@ class pinnacleDriver(QObject):
     def get_cf_and_bet_sum(self):
 
         key_max_bet_sum = 'Betslip-StakeWinInput-MaxWagerLimit'
-        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum))))
+        try:
+            self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum))))
+        except:
+            '''  Переделать на отправку сигнала об ошибке в сборе данных '''
+            #self.signal_error_in_getting_data.emit()
+            return
+
         self.bet_limit = self.driver.find_element(By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum)).text
 
         key_cf_value = 'style_price__2KUeC betslipCardPrice'
@@ -394,7 +408,13 @@ class pinnacleDriver(QObject):
     def get_cf(self):
         key_max_bet_sum = 'Betslip-StakeWinInput-MaxWagerLimit'
         key_cf_value = 'style_price__2KUeC betslipCardPrice'
-        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum))))
+        try:
+            self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@data-test-id="{}"]'.format(key_max_bet_sum))))
+        except:
+            print('Ставка закрыта')
+            сf = 1.0
+            return сf
+
         self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@class="{}"]'.format(key_cf_value))))
         cf = self.driver.find_element(By.XPATH, '//div[@class="{}"]'.format(key_cf_value)).text
         cf = float(cf)
@@ -411,11 +431,25 @@ class pinnacleDriver(QObject):
         input_sum_lable.clear()
         input_sum_lable.send_keys(bet_value)
 
+
         time.sleep(1)
         # нажимаем кнопку Поставить
         key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
         btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
-        #btn_do_bet.click()
+        btn_do_bet.click()
+
+    def go_to_start_page(self):
+        # пробую закрыть купон
+        try:
+            key_btn_close_kupon = 'betslip-close-button style_close__3bdcI'
+            btn_close_kupon = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_close_kupon))
+            btn_close_kupon.click()
+        except:
+            pass
+        time.sleep(2)
+        self.driver.get(self.bk_link)
+
+
 
 
 
@@ -438,20 +472,23 @@ class pinnacleDriver(QObject):
         if cf_now >= bet_kf:
             self.do_bet_by_sum(bet_sum)
             print('Pinnacle:  cтавка сделана')
+            self.betting_report()
             print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
         else:
             print('Pinnacle: кф изменился в меньшую сторону')
             new_total_prob = (1 / cf_now) + (1 / another_bet_kf)
             win_sum = cf_now * bet_sum * exchange_rate
-            totals_bets_sum = bet_sum * exchange_rate + another_bet_sum
+            totals_bets_sum = (bet_sum * exchange_rate) + (another_bet_sum * another_exchange_rate)
             if win_sum >= totals_bets_sum:
                 self.do_bet_by_sum(bet_sum)
                 print('Pinnacle:  cтавка сделана')
+                self.betting_report()
                 print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
             elif new_total_prob <= 1:
                 bet_sum = math.ceil(((another_bet_sum * another_bet_kf * another_exchange_rate) / cf_now) / exchange_rate)
                 self.do_bet_by_sum(bet_sum)
                 print('Pinnacle:  cтавка сделана')
+                self.betting_report()
                 print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
                 return
             else:
@@ -466,13 +503,16 @@ class pinnacleDriver(QObject):
                             ((another_bet_sum * another_bet_kf * another_exchange_rate) / cf_now_i) / exchange_rate)
                         self.do_bet_by_sum(bet_sum)
                         print('Pinnacle:  cтавка сделана')
+                        self.betting_report()
                         print('Pinnacle: ', cf_now_i, bet_sum, cf_now_i * bet_sum)
-
                         return
 
                 # пытаемся поставить в минус (заданный параметр)
                 print('Пытаюсь поставить в минус', loose_max, '%')
                 cf_now = self.get_cf()
+                if cf_now == 1.0:
+                    print('Pinnacle: Ставка закрыта, не полуилось закрыть плечо')
+                    return
                 income_now = ((cf_now * another_bet_kf) / (cf_now + another_bet_kf)) * 100
 
                 if income_now >= (100-loose_max):
@@ -480,16 +520,56 @@ class pinnacleDriver(QObject):
                         ((another_bet_sum * another_bet_kf * another_exchange_rate) / cf_now_i) / exchange_rate)
                     self.do_bet_by_sum(bet_sum)
                     print('Pinnacle:  cтавка сделана')
+                    self.betting_report()
                     print('Pinnacle: ', cf_now_i, bet_sum, cf_now_i * bet_sum)
 
                     return
 
+                print('Pinnacle: Не получилось перекрыть, вилка исчезла')
+                #self.betting_report(False)
 
 
+    def betting_report(self):
 
-                print('Не получилось перекрыть, вилка исчезла')
+        print('Pinnacle: получаю отчет')
+        try:
+            print('Pinnacle:  Ставка поставлена')
 
+            print('Pinnacle:  Жду прогрузки купона с инфо о поставленной ставке')
+            key_bet_success = 'style_acceptedBet__2Le6O'
+            self.wait.until(EC.visibility_of_element_located((By.XPATH, '//span[@class="{}"]'.format(key_bet_success))))
 
+            print('Pinnacle:  Считываю итог ставки')
+            label_success = self.driver.find_element(By.XPATH, '//span[@class="{}"]'.format(key_bet_success)).text
+
+            print('Pinnacle:  Получаю поставленный кф')
+            key_cf_label = 'SelectionDetails-Odds'
+            lablel_cf = self.driver.find_element(By.XPATH, '//div[@data-test-id="{}"]'.format(key_cf_label)).text
+
+            print('Pinnacle:  Получаю название команд')
+            key_match_name ='style_matchupName__dP_3R selectionDetailsMatchupName'
+            match_name = self.driver.find_element(By.XPATH, '//div[@class="{}"]'.format(key_match_name)).text
+
+            print('Pinnacle:  Сумму ставки и выигрыш')
+            key_win_bet_sum = 'style_subLabel__1Hhsv'
+            win_bet_sum = self.driver.find_elements(By.XPATH, '//span[@class="{}"]'.format(key_win_bet_sum))
+            bet_sum = win_bet_sum[0].text
+            win_sum = win_bet_sum[1].text
+
+            print('Pinnacle:  Закрываю купон')
+            key_btn_close_bet_info = 'betslip-close-button style_close__3bdcI style_close__U1ZAq'
+            btn_close_bet_info = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_close_bet_info))
+            btn_close_bet_info.click()
+
+            time.sleep(2)
+
+            print('Pinnacle:  ', match_name, ' | ', label_success, ' | ', lablel_cf)
+            print('Pinnacle:  ', bet_sum, ' | ', win_sum)
+
+            print('Pinnacle: Перехожу на главную страницу')
+            self.driver.get(self.bk_link)
+        except:
+            print('Pinnacle: что-то пошло не так в обработке инфо о ставке')
 
 
 

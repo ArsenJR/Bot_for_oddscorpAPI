@@ -1,3 +1,5 @@
+import time
+
 from AllLibraries import *
 
 GGBET_PORT = ''
@@ -5,13 +7,15 @@ GGBET_LINK = ''
 
 class ggbetDriver(QObject):
     signal_with_cf_and_bet_limit = pyqtSignal(list)
+    signal_error_in_getting_data = pyqtSignal()
+
     def doWebDriver(self):
 
         self.update_count = 0
         self.profile_id = GGBET_PORT
         #self.profile_id = 'ef7feae4c45943c9b9285ddc3a152be0'
         #self.bk_link = GGBET_LINK
-        self.bk_link = 'https://ggbet.name/ru/'
+        self.bk_link = 'https://ggbets.co/ru/'
         self.port = get_debug_port(self.profile_id)
         self.driver = get_webdriver(self.port)
         self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
@@ -22,10 +26,11 @@ class ggbetDriver(QObject):
                         """
         })
         self.driver.maximize_window()
-        self.wait = WebDriverWait(self.driver, 500)
+        self.wait = WebDriverWait(self.driver, 20)
 
         self.driver.maximize_window()
         self.driver.get(self.bk_link)
+
         self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
 
         try:
@@ -114,7 +119,12 @@ class ggbetDriver(QObject):
         self.driver.get(self.bet_link)
 
         self.driver.execute_script(f"window.scrollTo(0, 0)")
-        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@data-label="Все"]')))
+        try:
+            self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@data-label="Все"]')))
+        except:
+            print('GGBet:  Не нашел кнопки "Все"')
+            self.signal_error_in_getting_data.emit()
+            return
 
         # открываем все ставки
         self.driver.execute_script(f"window.scrollTo(0, 0)")
@@ -145,6 +155,8 @@ class ggbetDriver(QObject):
                     break
             except:
                 print("GGBET:   Не удалось найти поле со ставкой")
+                self.signal_error_in_getting_data.emit()
+                return
 
         # находим ставку по bet_name и нажимаем на неё
         print(self.bet_name)
@@ -164,6 +176,7 @@ class ggbetDriver(QObject):
 
         if is_cupon_open:
             print("GGBet:     Ставка закрыта")
+            self.signal_error_in_getting_data.emit()
             return
         # заключаем пари
 
@@ -188,10 +201,46 @@ class ggbetDriver(QObject):
             self.bet_limit = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_max_bet_value))[0].text
         except:
             print('Не получил лимит')
+            self.signal_error_in_getting_data.emit()
             return
 
         print('GGBET:   ', self.cf, self.bet_limit.split("\n")[0])
         self.signal_with_cf_and_bet_limit.emit([self.cf, self.bet_limit.split("\n")[0]])
+
+    def get_cf(self):
+        print('Ищем кнопку')
+        button_with_our_bet = self.fields_with_our_bet.find_element(By.XPATH,
+                                                                    './/button[contains(@title, "{}")]'.format(
+                                                                        self.bet_name))
+
+        if button_with_our_bet:
+            cf_now = float(button_with_our_bet.text)
+            print(cf_now)
+            print('Нашел коэф')
+            return cf_now
+        else:
+            print('GGBet:    Не могу найти коэф')
+            return None
+
+    def do_bet_by_sum(self, bet_value):
+        # ключ строки для ввода суммы ставки
+        key_input_sum_class = 'input__input___tstQL'
+        try:
+            input_sum_lable = self.driver.find_element(By.XPATH, '//input[@class = "{}"]'.format(key_input_sum_class))
+            input_sum_lable.clear()
+            input_sum_lable.send_keys(bet_value)
+            #input_sum_lable.send_keys(50)
+
+            # ключ кнопки "Сделать ставку"
+            key_button_do_bet = '__app-PlaceBet-container placeBet__container___ejcC8'
+
+            button_do_bet = self.driver.find_element(By.XPATH, '//div[@class = "{}"]'.format(key_button_do_bet))
+            button_do_bet.click()
+            return True
+        except:
+            return False
+
+
 
 
     def betting(self, bet_sum_bet_cf):
@@ -203,78 +252,134 @@ class ggbetDriver(QObject):
         another_bet_kf = bet_sum_bet_cf[4]
         another_exchange_rate = bet_sum_bet_cf[5]
         seconds_do_bet = bet_sum_bet_cf[6]
+        loose_max = bet_sum_bet_cf[7]
 
         # проверяем не упал ли коэффициент
         print('Ищем кнопку')
-        button_with_our_bet = self.fields_with_our_bet.find_element(By.XPATH,
-                                                                    './/button[contains(@title, "{}")]'.format(
-                                                                        self.bet_name))
+        cf_now = self.get_cf()
 
-        if button_with_our_bet:
-            cf_now = float(button_with_our_bet.text)
-            print(cf_now)
-            print('Нашел коэф')
-        else:
-            print('GGBet:    Не могу найти коэф')
-        print('ggbet Now:  ', cf_now)
-        print('ggbet', bet_sum)
-        if bet_kf <= cf_now:
-            # ключ строки для ввода суммы ставки
-            key_input_sum_class = 'input__input___tstQL'
-            try:
-                input_sum_lable = self.driver.find_element(By.XPATH, '//input[@class = "{}"]'.format(key_input_sum_class))
-                input_sum_lable.clear()
-                input_sum_lable.send_keys(bet_sum)
+        is_bet_done = False
 
-                # ключ кнопки "Сделать ставку"
-                key_button_do_bet = '__app-PlaceBet-container placeBet__container___ejcC8'
-
-
-                button_do_bet = self.driver.find_element(By.XPATH, '//div[@class = "{}"]'.format(key_button_do_bet))
-                ########################################
-                button_do_bet.click()
-                print('GGBET: Ставка сделана')
-                print('GGBET: ', cf_now, bet_sum, cf_now*bet_sum)
-            except:
-                print('GGBet:  Не получилось ввести')
-        else:
-            print('GGBet:   КФ изменился')
-            print(cf_now)
-            new_total_prob = (1 / cf_now) + (1 / another_bet_kf)
-            win_sum = cf_now * bet_sum * exchange_rate
-            totals_bets_sum = bet_sum * exchange_rate + another_bet_sum
-            if win_sum >= totals_bets_sum:
-                input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
-                input_sum_lable.clear()
-                input_sum_lable.send_keys(bet_sum)
-                # нажимаем кнопку поставить
-                key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
-                btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
-                btn_do_bet.click()
-                print('Pinnacle:  cтавка сделана')
-                print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
-            elif new_total_prob <= 1:
-                bet_sum = math.ceil(((another_bet_sum * another_bet_kf * another_exchange_rate) / bet_kf) / exchange_rate)
-
-                input_sum_lable = self.driver.find_element(By.XPATH, '//input[@placeholder = "Сумма ставки"]')
-                input_sum_lable.clear()
-                input_sum_lable.send_keys(bet_sum)
-                # нажимаем кнопку поставить
-                key_btn_do_bet = 'style_button__2cht5 style_fullWidth__tyxzD break-word style_medium__1Uf0e dead-center style_primary__3OVhQ style_button__1TVoo'
-                btn_do_bet = self.driver.find_element(By.XPATH, '//button[@class="{}"]'.format(key_btn_do_bet))
-                btn_do_bet.click()
-                print('Pinnacle:  cтавка сделана')
-                print('Pinnacle: ', cf_now, bet_sum, cf_now * bet_sum)
-            else:
-                print('Вилка пропала')
-                if self.update_count < 5:
-                    time.sleep(1)
-                    self.update_count += 1
-                    self.betting(bet_sum_bet_cf)
+        if cf_now:
+            print('ggbet Now:  ', cf_now)
+            print('ggbet', bet_sum)
+            if bet_kf <= cf_now:
+                is_bet_done = self.do_bet_by_sum(bet_sum)
+                if is_bet_done:
+                    print('GGBET: Ставка сделана')
+                    print('GGBET: ', cf_now, bet_sum, cf_now * bet_sum)
                 else:
-                    print('Не получилось перекрыть, вилка исчезла')
+                    print('GGBet:  Не получилось ввести')
+            else:
+                print('GGBet:   КФ изменился')
+                print(cf_now)
+                new_total_prob = (1 / cf_now) + (1 / another_bet_kf)
+                win_sum = cf_now * bet_sum * exchange_rate
+                totals_bets_sum = (bet_sum * exchange_rate) + (another_bet_sum * another_exchange_rate)
+                if win_sum >= totals_bets_sum:
+                    is_bet_done = self.do_bet_by_sum(bet_sum)
+                    if is_bet_done:
+                        print('GGBET: Ставка сделана')
+                        print('GGBET: ', cf_now, bet_sum, cf_now * bet_sum)
+                    else:
+                        print('GGBet:  Не получилось ввести')
+                elif new_total_prob <= 1:
+                    bet_sum = math.ceil(((another_bet_sum * another_bet_kf * another_exchange_rate) / bet_kf) / exchange_rate)
+
+                    is_bet_done = self.do_bet_by_sum(bet_sum)
+                    if is_bet_done:
+                        print('GGBET: Ставка сделана')
+                        print('GGBET: ', cf_now, bet_sum, cf_now * bet_sum)
+                    else:
+                        print('GGBet:  Не получилось ввести')
+        if not is_bet_done:
+            for i in range(seconds_do_bet):
+                print('GGBet: пытаюсь переставить, попытка №', i)
+                time.sleep(1)
+                cf_now_i = self.get_cf()
+                total_prob_now = (1 / cf_now_i) + (1 / another_bet_kf)
+                if total_prob_now <= 1:
+                    bet_sum = math.ceil(
+                        ((another_bet_sum * another_bet_kf * another_exchange_rate) / cf_now_i) / exchange_rate)
+                    is_bet_done = self.do_bet_by_sum(bet_sum)
+                    if is_bet_done:
+                        print('Pinnacle:  cтавка сделана')
+                        print('Pinnacle: ', cf_now_i, bet_sum, cf_now_i * bet_sum)
+        if not is_bet_done:
+            print('Пытаюсь поставить в минус', loose_max, '%')
+            cf_now = self.get_cf()
+            income_now = ((cf_now * another_bet_kf) / (cf_now + another_bet_kf)) * 100
+            if income_now >= (100 - loose_max):
+                bet_sum = math.ceil(
+                    ((another_bet_sum * another_bet_kf * another_exchange_rate) / cf_now_i) / exchange_rate)
+                is_bet_done = self.do_bet_by_sum(bet_sum)
+                if is_bet_done:
+                    print('Pinnacle:  cтавка сделана')
+                    print('Pinnacle: ', cf_now_i, bet_sum, cf_now_i * bet_sum)
+
+        if is_bet_done:
+            self.betting_report()
+        else:
+            print('GGBet: Попробовалв се, не получилось сделать ставку(')
 
 
+    def go_to_start_page(self):
+        # пробую закрыть купон
+        try:
+            button_with_our_bet = self.fields_with_our_bet.find_element(By.XPATH,
+                                                                        './/button[contains(@title, "{}")]'.format(
+                                                                            self.bet_name))
+            button_with_our_bet.click()
+        except:
+            pass
+        time.sleep(2)
+        self.driver.get(self.bk_link)
+
+    def betting_report(self):
+        print('GGBet: получаю отчет')
+
+        try:
+            print('GGBet: Жду открытия поля с инфо о сделанной ставке')
+            key_field_bets_info = 'betListHeader__item___6VoUc betListHeader__is-active___1NzU8'
+            key_bet_container = 'bet__container___2geIr'
+            #self.wait.until(EC.visibility_of_element_located(By.XPATH, '//div[@class="{}"]'.format(key_bet_container)))
+            time.sleep(20)
+
+            # находим поле со ставкой
+            print("GGBet:  Ищем поля с инфой о сделанных ставок")
+            key_bet_container = 'bet__container___2geIr'
+            containers = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_bet_container))
+
+            print("GGBet:  Ищем наше поле")
+            our_container = containers[0]
+
+            print('GGBet: Получаю название команд')
+            key_match_name = '__app-SmartLink-link'
+            match_name = our_container.find_element(By.XPATH, './/a[@class="{}"]'.format(key_match_name)).text
+
+            print('GGBet: Получаю ставку')
+            key_bet_name = 'odd__odd___2d18G'
+            bet = our_container.find_element(By.XPATH, './/div[@class="{}"]'.format(key_bet_name)).text
+
+            print('GGBet: Получаю тип ставки')
+            key_bet_type = 'odd__market___1nQc1'
+            bet_type = our_container.find_element(By.XPATH, './/div[@class="{}"]'.format(key_bet_type)).text
+
+
+            print('GGBet: Получаю сумму ставки и выигрыша')
+            key_win_bet_sum = 'betFooter__value___1w0hb'
+            elements_with_sum = our_container.find_elements(By.XPATH, './/div[@class="{}"]'.format(key_win_bet_sum))
+            bet_sum = elements_with_sum[0].text
+            win_sum = elements_with_sum[1].text
+
+
+            print('GGBet:  ', match_name, ' | ', bet_type, ' | ', bet)
+            print('GGBet:  ', bet_sum, ' | ', win_sum)
+
+            time.sleep(2)
+            self.driver.get(self.bk_link)
+        except:
+            print('GGBet: Что-то пошло не так...')
 
 def get_webdriver(port):
     chrome_options = Options()
