@@ -31,6 +31,10 @@ class Window(QMainWindow, QObject, object):
     signal_to_close_kupon_pinnacle = pyqtSignal(bool)
     signal_start_page_pinnacle = pyqtSignal()
     signal_start_page_ggbet = pyqtSignal()
+    signal_do_first_bet_pinnacle = pyqtSignal(list)
+    signal_do_first_bet_ggbet = pyqtSignal(list)
+    signal_do_second_bet_pinnacle = pyqtSignal(list)
+    signal_do_second_bet_ggbet = pyqtSignal(list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -43,7 +47,7 @@ class Window(QMainWindow, QObject, object):
         self.auto_betting = False  # автоматическое проставление
         self.limit_type = None  # по какой бк брать фиксированную ставку
         self.limit_sum = None  # фиксированная сумма ставки (общая или в одной из бк)
-        self.how_do_bet = None  # как ставить (какую первую)
+        self.how_do_bet = None  # как ставить (какую первую)  'if 3 --> Первым GGBet' 'if 2 --> Первым Pinnacle'
         # данные по валютам в бк
         self.is_ggbet_rub = True
         self.is_pinnacle_rub = True
@@ -184,6 +188,8 @@ class Window(QMainWindow, QObject, object):
 
     def clear_list(self):
         self.list_forks_auto_betting = []
+        print(self.how_do_bet)
+        print(self.limit_sum)
 
     def save_cf_and_bet_limit_from_pinnacle(self, data):
         self.pinnacle_cf = None
@@ -195,37 +201,48 @@ class Window(QMainWindow, QObject, object):
 
         print(self.pinnacle_cf, type(self.pinnacle_cf))
         print(self.pinnacle_limit_sum, type(self.pinnacle_limit_sum))
+        print('Как ставим:', self.how_do_bet, type(self.how_do_bet))
+
 
         self.is_pinnacle_data_received = True
 
         if self.is_ggbet_data_received:
-            sum_two_bets = bet_calc(pin_cf=self.pinnacle_cf, ggbet_cf=self.ggbet_cf,
-                                    pin_limit=self.pinnacle_limit_sum, ggbet_limit=self.ggbet_limit_sum,
-                                    is_rub_pin=self.is_pinnacle_rub, is_rub_ggbet=self.is_ggbet_rub,
-                                    ggbet_exchange_rate=self.ggbet_exchange_rate,
-                                    pin_exchange_rate=self.pinnacle_exchange_rate,
-                                    settings_type_limit=self.limit_type,
-                                    settings_sum_limit=float(self.limit_sum))
-            if sum_two_bets != 0:
-                pinnacle_bet = sum_two_bets[0]
-                ggbet_bet = sum_two_bets[1]
-                print('Lets go')
-                print(pinnacle_bet)
-                print(ggbet_bet)
+            if self.how_do_bet == 1:
+                sum_two_bets = bet_calc(pin_cf=self.pinnacle_cf, ggbet_cf=self.ggbet_cf,
+                                        pin_limit=self.pinnacle_limit_sum, ggbet_limit=self.ggbet_limit_sum,
+                                        is_rub_pin=self.is_pinnacle_rub, is_rub_ggbet=self.is_ggbet_rub,
+                                        ggbet_exchange_rate=self.ggbet_exchange_rate,
+                                        pin_exchange_rate=self.pinnacle_exchange_rate,
+                                        settings_type_limit=self.limit_type,
+                                        settings_sum_limit=float(self.limit_sum))
+                if sum_two_bets != 0:
+                    pinnacle_bet = sum_two_bets[0]
+                    ggbet_bet = sum_two_bets[1]
+                    print('Lets go')
+                    print(pinnacle_bet)
+                    print(ggbet_bet)
 
-                self.signal_do_bet_pinnacle.emit(
-                    [int(pinnacle_bet), self.pinnacle_cf, float(self.pinnacle_exchange_rate), int(ggbet_bet),
-                     self.ggbet_cf,
-                     float(self.ggbet_exchange_rate), self.second_do_bet, self.loose_max])
-                self.signal_do_bet_ggbet.emit(
-                    [int(ggbet_bet), self.ggbet_cf, float(self.ggbet_exchange_rate), int(pinnacle_bet),
-                     self.pinnacle_cf,
-                     float(self.pinnacle_exchange_rate), self.second_do_bet, self.loose_max])
+                    """self.signal_do_bet_pinnacle.emit(
+                        [int(pinnacle_bet), self.pinnacle_cf, float(self.pinnacle_exchange_rate), int(ggbet_bet),
+                         self.ggbet_cf,
+                         float(self.ggbet_exchange_rate), self.second_do_bet, self.loose_max])"""
+                    self.signal_do_bet_ggbet.emit(
+                        [int(ggbet_bet), self.ggbet_cf, float(self.ggbet_exchange_rate), int(pinnacle_bet),
+                         self.pinnacle_cf,
+                         float(self.pinnacle_exchange_rate), self.second_do_bet, self.loose_max])
+                else:
+                    print('Переходим на главную страницу в двух бк')
+                    self.restart_bots()
+            elif self.how_do_bet == 2:
+                print(float(self.limit_sum), float(self.pinnacle_cf), float(self.ggbet_cf))
+                self.signal_do_first_bet_pinnacle.emit([float(self.limit_sum), float(self.pinnacle_cf), float(self.ggbet_cf)])
+            elif self.how_do_bet == 3:
+                print('Вход в нужную область')
+                print(float(self.limit_sum), float(self.ggbet_cf), float(self.pinnacle_cf))
+                self.signal_do_first_bet_ggbet.emit([float(self.limit_sum), float(self.ggbet_cf), self.pinnacle_cf])
             else:
-                print('Переходим на главную страницу в двух бк')
-                # self.signal_to_close_kupon_ggbet.emit(False)
-                # self.signal_to_close_kupon_pinnacle.emit(False)
                 self.restart_bots()
+
 
     def save_cf_and_bet_limit_from_ggbet(self, data):
         self.ggbet_cf = None
@@ -237,57 +254,90 @@ class Window(QMainWindow, QObject, object):
 
         print(self.ggbet_cf, type(self.ggbet_cf))
         print(self.ggbet_limit_sum, type(self.ggbet_limit_sum))
+        print('Как ставим:', self.how_do_bet, type(self.how_do_bet))
+        self.how_do_bet = int(float(self.how_do_bet))
 
         self.is_ggbet_data_received = True
 
         if self.is_pinnacle_data_received:
-            sum_two_bets = bet_calc(pin_cf=self.pinnacle_cf, ggbet_cf=self.ggbet_cf,
-                                    pin_limit=self.pinnacle_limit_sum, ggbet_limit=self.ggbet_limit_sum,
-                                    is_rub_pin=self.is_pinnacle_rub, is_rub_ggbet=self.is_ggbet_rub,
-                                    ggbet_exchange_rate=float(self.ggbet_exchange_rate),
-                                    pin_exchange_rate=float(self.pinnacle_exchange_rate),
-                                    settings_type_limit=self.limit_type,
-                                    settings_sum_limit=float(self.limit_sum))
-            if sum_two_bets != 0:
-                pinnacle_bet = sum_two_bets[0]
-                ggbet_bet = sum_two_bets[1]
-                print('Lets go')
-                print(pinnacle_bet)
-                print(ggbet_bet)
+            if self.how_do_bet == 1:
+                sum_two_bets = bet_calc(pin_cf=self.pinnacle_cf, ggbet_cf=self.ggbet_cf,
+                                        pin_limit=self.pinnacle_limit_sum, ggbet_limit=self.ggbet_limit_sum,
+                                        is_rub_pin=self.is_pinnacle_rub, is_rub_ggbet=self.is_ggbet_rub,
+                                        ggbet_exchange_rate=self.ggbet_exchange_rate,
+                                        pin_exchange_rate=self.pinnacle_exchange_rate,
+                                        settings_type_limit=self.limit_type,
+                                        settings_sum_limit=float(self.limit_sum))
+                if sum_two_bets != 0:
+                    pinnacle_bet = sum_two_bets[0]
+                    ggbet_bet = sum_two_bets[1]
+                    print('Lets go')
+                    print(pinnacle_bet)
+                    print(ggbet_bet)
 
-                self.signal_do_bet_pinnacle.emit(
-                    [int(pinnacle_bet), self.pinnacle_cf, float(self.pinnacle_exchange_rate), int(ggbet_bet),
-                     self.ggbet_cf,
-                     float(self.ggbet_exchange_rate), self.second_do_bet, self.loose_max])
-                self.signal_do_bet_ggbet.emit(
-                    [int(ggbet_bet), self.ggbet_cf, float(self.ggbet_exchange_rate), int(pinnacle_bet),
-                     self.pinnacle_cf,
-                     float(self.pinnacle_exchange_rate), self.second_do_bet, self.loose_max])
+                    """self.signal_do_bet_pinnacle.emit(
+                        [int(pinnacle_bet), self.pinnacle_cf, float(self.pinnacle_exchange_rate), int(ggbet_bet),
+                         self.ggbet_cf,
+                         float(self.ggbet_exchange_rate), self.second_do_bet, self.loose_max])"""
+                    self.signal_do_bet_ggbet.emit(
+                        [int(ggbet_bet), self.ggbet_cf, float(self.ggbet_exchange_rate), int(pinnacle_bet),
+                         self.pinnacle_cf,
+                         float(self.pinnacle_exchange_rate), self.second_do_bet, self.loose_max])
+                else:
+                    print('Переходим на главную страницу в двух бк')
+                    self.restart_bots()
+            elif self.how_do_bet == 2:
+                print(float(self.limit_sum), float(self.pinnacle_cf), float(self.ggbet_cf))
+                self.signal_do_first_bet_pinnacle.emit([float(self.limit_sum), self.pinnacle_cf, float(self.ggbet_cf)])
+            elif self.how_do_bet == 3:
+                print('Вход в нужную область')
+                print(float(self.limit_sum), float(self.ggbet_cf), float(self.pinnacle_cf))
+                self.signal_do_first_bet_ggbet.emit([float(self.limit_sum), float(self.ggbet_cf), self.pinnacle_cf])
             else:
-                print('Отправляем сигнал False для закрытия купона')
-                # self.signal_to_close_kupon_ggbet.emit(False)
-                # self.signal_to_close_kupon_pinnacle.emit(False)
                 self.restart_bots()
 
-    def bet_calc(self):
+    def do_second_bet(self, first_bet_data):
+        print('Первое плечо перекрыто, начинаю ставить второе')
+        if self.how_do_bet == 2:        # сделана ставка на пинке
+            print('Начинаю ставить на GGBet')
+            list_data_to_second_bet = []
+            pinnacle_cf = first_bet_data[0]
+            list_data_to_second_bet.append(pinnacle_cf)
+            pinnacle_sum = first_bet_data[1]
+            list_data_to_second_bet.append(pinnacle_sum)
+            pinnacle_exchange_rate = float(self.pinnacle_exchange_rate)
+            list_data_to_second_bet.append(pinnacle_exchange_rate)
+            exchange_rate = float(self.ggbet_exchange_rate)
+            list_data_to_second_bet.append(exchange_rate)
+            list_data_to_second_bet.append(self.second_do_bet)
+            list_data_to_second_bet.append(self.loose_max)
 
-        print('Pinnacle    ', self.pinnacle_cf, self.pinnacle_limit_sum)
-        print('GGbet    ', self.ggbet_cf, self.ggbet_limit_sum)
+            print(list_data_to_second_bet)
+            self.signal_do_second_bet_ggbet.emit(list_data_to_second_bet)
 
-        total_prob = 1 / self.ggbet_cf + 1 / self.pinnacle_cf
-        print(total_prob)
+            # делаем ставку на ггбет
+        if self.how_do_bet == 3:        # сделана ставка на ggbet
+            # делаем ставку на pinnacle
+            print('Начинаю ставить на Pinnacle')
+            # ggbet cf/sum, ex_rate, pin_ex_rate,second_do_bet, loose_max
+            list_data_to_second_bet = []
+            ggbet_cf = first_bet_data[0]
+            list_data_to_second_bet.append(ggbet_cf)
+            ggbet_sum = first_bet_data[1]
+            list_data_to_second_bet.append(ggbet_sum)
+            ggbet_exchange_rate = float(self.ggbet_exchange_rate)
+            list_data_to_second_bet.append(ggbet_exchange_rate)
+            exchange_rate = float(self.pinnacle_exchange_rate)
+            list_data_to_second_bet.append(exchange_rate)
+            list_data_to_second_bet.append(self.second_do_bet)
+            list_data_to_second_bet.append(self.loose_max)
 
-        if total_prob < 1:
-            if self.limit_sum:
-                pinnacle_sum_bet = float(self.limit_sum)
-            else:
-                pinnacle_sum_bet = float(500)
-            ggbet_sum_bet = (pinnacle_sum_bet * self.pinnacle_cf) / self.ggbet_cf
-            if ggbet_sum_bet > self.ggbet_limit_sum:
-                ggbet_sum_bet = self.ggbet_limit_sum
-                pinnacle_sum_bet = (ggbet_sum_bet * self.ggbet_cf) / self.pinnacle_cf
-            self.signal_do_bet_pinnacle.emit([int(math.ceil(pinnacle_sum_bet / 63)), self.pinnacle_cf])
-            self.signal_do_bet_ggbet.emit([int(ggbet_sum_bet), self.ggbet_cf])
+            print(list_data_to_second_bet)
+            self.signal_do_second_bet_pinnacle.emit(list_data_to_second_bet)
+
+
+
+
 
     def open_currency_converter_dialog(self):
         dialog = DialogCurrencyConverter(self)
@@ -340,10 +390,21 @@ class Window(QMainWindow, QObject, object):
         self.signal_do_bet_ggbet.connect(self.ggbet_driver.betting)
         self.signal_to_close_kupon_ggbet.connect(self.ggbet_driver.betting_report)
 
+        # сигнал начинает выполнение функции проставления плеча на ggbet (последовательное проставление: первое плечо)
+        self.signal_do_first_bet_ggbet.connect(self.ggbet_driver.first_betting)
+
+        '''# сигнал начинает выполнение функции проставления плеча на пинке (последовательное проставление: первое плечо)
+        self.signal_do_first_bet_pinnacle.connect(self.pinnacle_driver.first_betting)'''
+        # сигнал начинает выполнение функции проставления плеча на ggbet (последовательное проставление: второе плечо)
+        self.signal_do_second_bet_ggbet.connect(self.ggbet_driver.second_betting)
+        # сигнал запускающий проставление на второй бк
+        self.ggbet_driver.signal_first_bet_is_done.connect(self.do_second_bet)
+
         # сигнал отправляется при ошибке в получении данных (кф и лимит ставки), который запускает переход на главную страницу в двух канторах
         self.ggbet_driver.signal_error_in_getting_data.connect(self.restart_bots)
         # сигнал запускает функцию перехода на главную страницу букмекерской конторы (удаляет купон)
         self.signal_start_page_ggbet.connect(self.ggbet_driver.go_to_start_page)
+
 
         self.ggbet_thread.start()
 
@@ -356,11 +417,17 @@ class Window(QMainWindow, QObject, object):
         self.signal_to_send_bet_parameter_to_pinnacle.connect(self.pinnacle_driver.do_bet)
         self.pinnacle_driver.signal_with_cf_and_bet_limit.connect(self.save_cf_and_bet_limit_from_pinnacle)
         self.signal_do_bet_pinnacle.connect(self.pinnacle_driver.betting)
+        # сигнал начинает выполнение функции проставления плеча на пинке (последовательное проставление: первое плечо)
+        self.signal_do_first_bet_pinnacle.connect(self.pinnacle_driver.first_betting)
         self.signal_to_close_kupon_pinnacle.connect(self.pinnacle_driver.betting_report)
         # сигнал отправляется при ошибке в получении данных (кф и лимит ставки), который запускает переход на главную страницу в двух канторах
         self.pinnacle_driver.signal_error_in_getting_data.connect(self.restart_bots)
         # сигнал запускает функцию перехода на главную страницу букмекерской конторы (удаляет купон)
         self.signal_start_page_pinnacle.connect(self.pinnacle_driver.go_to_start_page)
+        # сигнал запускающий проставление на второй бк
+        self.pinnacle_driver.signal_first_bet_is_done.connect(self.do_second_bet)
+        # сигнал начинает выполнение функции проставления плеча на pinnacle (последовательное проставление: второе плечо)
+        self.signal_do_second_bet_pinnacle.connect(self.pinnacle_driver.second_betting)
 
         self.pinnacle_thread.start()
 

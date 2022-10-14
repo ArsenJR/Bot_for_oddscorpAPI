@@ -1,3 +1,4 @@
+import math
 import time
 
 from AllLibraries import *
@@ -8,13 +9,14 @@ GGBET_LINK = ''
 class ggbetDriver(QObject):
     signal_with_cf_and_bet_limit = pyqtSignal(list)
     signal_error_in_getting_data = pyqtSignal()
+    signal_first_bet_is_done = pyqtSignal(list)
 
     def doWebDriver(self):
 
         self.update_count = 0
         self.profile_id = GGBET_PORT
-        #self.profile_id = 'ef7feae4c45943c9b9285ddc3a152be0'
-        #self.bk_link = GGBET_LINK
+        # self.profile_id = 'ef7feae4c45943c9b9285ddc3a152be0'
+        # self.bk_link = GGBET_LINK
         self.bk_link = 'https://ggbets.co/ru/'
         self.port = get_debug_port(self.profile_id)
         self.driver = get_webdriver(self.port)
@@ -31,7 +33,7 @@ class ggbetDriver(QObject):
         self.driver.maximize_window()
         self.driver.get(self.bk_link)
 
-        self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
+        # self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
 
         try:
             key_button_accept_cookie = 'cookie-agreement__button cookie-agreement__button--ok'
@@ -243,6 +245,91 @@ class ggbetDriver(QObject):
 
 
 
+    def first_betting(self, bet_sum_bet_cf):
+        print('GGBet: ', bet_sum_bet_cf)
+        bet_sum = bet_sum_bet_cf[0]
+        bet_kf = bet_sum_bet_cf[1]
+        another_bet_kf = bet_sum_bet_cf[2]
+        cf_now = self.get_cf()
+        if not cf_now:
+            print('GGBet:  Не получается получить кф')
+            self.signal_error_in_getting_data.emit()
+            return
+
+        new_total_prob = (1 / cf_now) + (1 / another_bet_kf)
+
+        if new_total_prob < 1:
+            print('GGBet: Ставлю ставку)')
+            print(bet_sum)
+            is_bet_done = self.do_bet_by_sum(bet_sum)
+            if is_bet_done:
+                try:
+                    betting_report_data = self.betting_report()
+                    print(betting_report_data)
+                    const_cf = float(betting_report_data[0])
+                    const_bet_sum = float(betting_report_data[1].split(' ')[0].replace(',', '.'))
+
+                    print(const_cf, const_bet_sum)
+
+                    self.signal_first_bet_is_done.emit([const_cf, const_bet_sum])
+                except:
+                    print('Не удалось получить отчет')
+        else:
+            print('GGBet: Вилка пропала, ставка не сделана')
+        ################################################
+
+    def second_betting(self, first_bet_data):
+        pinnacle_cf = float(first_bet_data[0])
+        pinnacle_sum = float(first_bet_data[1])
+        pinnacle_exchange_rate = first_bet_data[2]
+        exchange_rate = first_bet_data[3]
+        seconds_do_bet = first_bet_data[4]
+        loose_max = first_bet_data[5]
+
+
+        print('GGbet: Получаю коэффициент')
+        cf_now = self.get_cf()
+        is_bet_done = False
+
+        if cf_now:
+            new_total_prob = (1 / cf_now) + (1 / pinnacle_cf)
+        else:
+            new_total_prob = 2
+
+        if new_total_prob <= 1:
+            print('GGbet: Считаю сумму ставки для второго плеча')
+            bet_sum = math.ceil((pinnacle_sum * pinnacle_cf * pinnacle_exchange_rate) / cf_now)
+            print('GGbet: Сумма ставки -', bet_sum)
+            is_bet_done = self.do_bet_by_sum(bet_sum)
+        if not is_bet_done:
+            print('GGBet: Пытаюсь поставить (попытка №2)')
+            for i in range(seconds_do_bet):
+                time.sleep(1)
+                cf_now = self.get_cf()
+                if cf_now:
+                    new_total_prob = (1 / cf_now) + (1 / pinnacle_cf)
+                else:
+                    new_total_prob = 2
+                if new_total_prob <= 1:
+                    print('GGbet: Считаю сумму ставки для второго плеча')
+                    bet_sum = math.ceil((pinnacle_sum * pinnacle_cf * pinnacle_exchange_rate) / cf_now)
+                    print('GGbet: Сумма ставки -', bet_sum)
+                    is_bet_done = self.do_bet_by_sum(bet_sum)
+                    break
+        if not is_bet_done:
+            print('GGBet: Пытаюсь поставить в минус', loose_max, '%')
+            cf_now = self.get_cf()
+            income_now = ((cf_now * pinnacle_cf) / (cf_now + pinnacle_cf)) * 100
+            if income_now >= (100 - loose_max):
+                bet_sum = math.ceil(
+                    ((pinnacle_sum * pinnacle_cf * pinnacle_exchange_rate) / cf_now) / exchange_rate)
+                is_bet_done = self.do_bet_by_sum(bet_sum)
+
+        if is_bet_done:
+            self.betting_report()
+        else:
+            print('GGBet: Попробовал все, не получилось сделать ставку(')
+
     def betting(self, bet_sum_bet_cf):
         print('GGBet: ', bet_sum_bet_cf)
         bet_sum = bet_sum_bet_cf[0]
@@ -343,11 +430,18 @@ class ggbetDriver(QObject):
             key_field_bets_info = 'betListHeader__item___6VoUc betListHeader__is-active___1NzU8'
             key_bet_container = 'bet__container___2geIr'
             #self.wait.until(EC.visibility_of_element_located(By.XPATH, '//div[@class="{}"]'.format(key_bet_container)))
-            time.sleep(20)
+            #time.sleep(20)
+            try:
+                self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@class="bet__container___2geIr"]')))
+            except:
+                print('Не нашел это поле')
+
+            time.sleep(1)
 
             # находим поле со ставкой
             print("GGBet:  Ищем поля с инфой о сделанных ставок")
             key_bet_container = 'bet__container___2geIr'
+
             containers = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_bet_container))
 
             print("GGBet:  Ищем наше поле")
@@ -372,9 +466,16 @@ class ggbetDriver(QObject):
             bet_sum = elements_with_sum[0].text
             win_sum = elements_with_sum[1].text
 
+            print('GGBet: Получаю кф')
+            key_kf_value = 'odd__coef___13USE'
+            constant_cf = our_container.find_element(By.XPATH, './/div[@class="{}"]'.format(key_kf_value)).text
+            print('GGBet: КФ =', constant_cf)
+
 
             print('GGBet:  ', match_name, ' | ', bet_type, ' | ', bet)
             print('GGBet:  ', bet_sum, ' | ', win_sum)
+
+            return [constant_cf, bet_sum]
 
             time.sleep(2)
             self.driver.get(self.bk_link)

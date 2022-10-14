@@ -74,9 +74,9 @@ class DialogSettings(QDialog):
         if self.r_btn_synch.isChecked():
             how_do_bet = 1
         elif self.r_btn_first_ggbet.isChecked():
-            how_do_bet = 2
-        elif self.r_btn_first_pin.isChecked():
             how_do_bet = 3
+        elif self.r_btn_first_pin.isChecked():
+            how_do_bet = 2
 
         global limit_sum, limit_type
         limit_type = 1
