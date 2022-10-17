@@ -29,11 +29,12 @@ class ggbetDriver(QObject):
         })
         self.driver.maximize_window()
         self.wait = WebDriverWait(self.driver, 20)
+        self.wait_error_webpage = WebDriverWait(self.driver, 4)
 
         self.driver.maximize_window()
         self.driver.get(self.bk_link)
 
-        # self.wait.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
+        # self.wait_error_webpage.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
 
         try:
             key_button_accept_cookie = 'cookie-agreement__button cookie-agreement__button--ok'
@@ -70,37 +71,7 @@ class ggbetDriver(QObject):
     def do_bet(self, dict):
         self.update_count = 0
         self.bet_parameter = dict
-        """self.bet_parameter = {
-            "fork_id": "caf709ede191ef38f3",
-            "income": 1.14,
-            "ow_income": 0,
-            "sport": "esports.cs",
-            "bet_type": "WIN",
-            "event_id": "16366171",
-            "is_middles": "0",
-            "is_cyber": "0",
-            "BK1_bet": "WIN__P1",
-            "BK1_bet_type": "WIN",
-            "BK1_alt_bet": "",
-            "BK1_cf": 2.16,
-            "BK1_event_id": "GGGTN060ED2572B4",
-            "BK1_event_native_id": "5:7bd12e59-4ffb-4938-84d1-347c6d2cbea0",
-            "BK1_game": "Билли Харрис vs Dali Blanch",
-            "BK1_href": "https://ggbet.name/ru/esports/match/bad-news-eagles-vs-eternal-fire-04-10",
-            "BK1_league": "АТР Челленджер. Аликанте",
-            "BK1_name": "gg_bet",
-            "BK1_score": "0:0",
-            "BK1_event_meta": "{'start_at': 1664799900}",
-            "BK1_market_meta": "{\"title_name\":\"Победитель\",\"bet_name\":\"Bad News Eagles\"}",
-            "BK2_bet": "WIN__P2",
-            "BK2_bet_type": "WIN",
-            "BK2_cf": 1.769,
-            "BK2_href": "https://www.skynotes.one/ru/esports/csgo-iem-road-to-rio-eu-rmr-a/bad-news-eagles-vs-eternal-fire/1559739529#all",
-            "BK2_name": "pinnacle",
-            "BK2_event_meta": "AAA",
-            "BK2_market_meta": "AAA",
-            "alive_sec": 57
-        }"""
+
         if self.bet_parameter['BK1_name'] == 'gg_bet':
             self.bet_href = self.bet_parameter['BK1_href']
             self.bet_type = self.bet_parameter['BK1_bet_type']
@@ -118,15 +89,37 @@ class ggbetDriver(QObject):
         self.bet_name = self.bet_markers['bet_name']
 
         # открыли ссылку с матчем
+        self.driver.minimize_window()
+        self.driver.maximize_window()
         self.driver.get(self.bet_link)
 
         self.driver.execute_script(f"window.scrollTo(0, 0)")
+
+
+        # проверка: на страницу с ошибкой/ техническими работами
+        try:
+            self.wait_error_webpage.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
+        except:
+            try:
+                self.wait_error_webpage.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
+            except:
+                self.driver.get(self.bet_link)
+
         try:
             self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@data-label="Все"]')))
         except:
             print('GGBet:  Не нашел кнопки "Все"')
             self.signal_error_in_getting_data.emit()
             return
+
+        # убираем открытый купон, если он остался после прошлой ставки
+        key_delete_all_cupons = 'betslipHeader__icon___2t-ri __app-Icon'
+        try:
+            btn_delete_cupons = self.driver.find_element(By.XPATH, '//svg[@class="{}"]'.format(key_delete_all_cupons))
+            btn_delete_cupons
+            btn_delete_cupons.click()
+        except:
+            print('GGbet:  Не нашел кнопки удалить все купоны на главном экране')
 
         # открываем все ставки
         self.driver.execute_script(f"window.scrollTo(0, 0)")
@@ -192,12 +185,16 @@ class ggbetDriver(QObject):
             pass
         time.sleep(1)
 
+        self.driver.minimize_window()
+        self.driver.maximize_window()
+
         key_input_sum_class = 'input__input___tstQL'
         try:
             input_sum_lable = self.driver.find_element(By.XPATH, '//input[@class = "{}"]'.format(key_input_sum_class))
             input_sum_lable.clear()
             input_sum_lable.send_keys(10000000)
 
+            time.sleep(1)
             key_max_bet_value = 'totalRow__value___1Ygme'
             print('Получаю лимит')
             self.bet_limit = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_max_bet_value))[0].text
@@ -216,10 +213,14 @@ class ggbetDriver(QObject):
                                                                         self.bet_name))
 
         if button_with_our_bet:
-            cf_now = float(button_with_our_bet.text)
-            print(cf_now)
             print('Нашел коэф')
-            return cf_now
+            cf_now = float(button_with_our_bet.text)
+            if cf_now:
+                print(cf_now)
+                return cf_now
+            else:
+                print('GGBet:  Нашел кнопку, но ставка закрыта')
+                return None
         else:
             print('GGBet:    Не могу найти коэф')
             return None
@@ -250,6 +251,19 @@ class ggbetDriver(QObject):
         bet_sum = bet_sum_bet_cf[0]
         bet_kf = bet_sum_bet_cf[1]
         another_bet_kf = bet_sum_bet_cf[2]
+
+        self.driver.minimize_window()
+        self.driver.maximize_window()
+
+        # Проверяем все ли видно на странице
+        try:
+            self.wait_error_webpage.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
+        except:
+            try:
+                self.wait_error_webpage.until(EC.visibility_of_element_located((By.XPATH, '//a[@title="GG.BET"]')))
+            except:
+                self.driver.get(self.bet_link)
+
         cf_now = self.get_cf()
         if not cf_now:
             print('GGBet:  Не получается получить кф')
@@ -271,11 +285,12 @@ class ggbetDriver(QObject):
 
                     print(const_cf, const_bet_sum)
 
-                    self.signal_first_bet_is_done.emit([const_cf, const_bet_sum])
+                    self.signal_first_bet_is_done.emit([const_cf, const_bet_sum, betting_report_data[2]])
                 except:
                     print('Не удалось получить отчет')
         else:
             print('GGBet: Вилка пропала, ставка не сделана')
+            self.signal_error_in_getting_data.emit()
         ################################################
 
     def second_betting(self, first_bet_data):
@@ -409,6 +424,18 @@ class ggbetDriver(QObject):
         else:
             print('GGBet: Попробовалв се, не получилось сделать ставку(')
 
+    def go_to_start_pageV2(self):
+        self.driver.get(self.bk_link)
+
+        time.sleep(2)
+
+        key_delete_all_cupons = 'betslipHeader__icon___2t-ri __app-Icon'
+        try:
+            btn_delete_cupons = self.driver.find_element(By.XPATH, '//svg[@class="{}"]'.format(key_delete_all_cupons))
+            btn_delete_cupons
+            btn_delete_cupons.click()
+        except:
+            print('GGbet:  Не нашел кнопки удалить все купоны на главном экране')
 
     def go_to_start_page(self):
         # пробую закрыть купон
@@ -418,9 +445,22 @@ class ggbetDriver(QObject):
                                                                             self.bet_name))
             button_with_our_bet.click()
         except:
-            pass
+            print('GGBet: Не нашел кнопку с купоном')
         time.sleep(2)
         self.driver.get(self.bk_link)
+        time.sleep(2)
+
+        self.driver.minimize_window()
+        self.driver.maximize_window()
+
+        key_div_delete_cupon = 'icon__title-wr___1U8nu'
+        try:
+            btns_delete_cupon = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_div_delete_cupon))
+            print('GGBet: кол-во кнопок действия с купоном',len(btns_delete_cupon))
+            btn_delete_cupon = btn_delete_cupon[3]
+            btn_delete_cupon.click()
+        except:
+            print('GGBet: При переходе не нашел кнопку удалить купон')
 
     def betting_report(self):
         print('GGBet: получаю отчет')
@@ -475,7 +515,8 @@ class ggbetDriver(QObject):
             print('GGBet:  ', match_name, ' | ', bet_type, ' | ', bet)
             print('GGBet:  ', bet_sum, ' | ', win_sum)
 
-            return [constant_cf, bet_sum]
+            return [constant_cf, bet_sum, [match_name, constant_cf, bet_sum, bet_type, bet]]
+
 
             time.sleep(2)
             self.driver.get(self.bk_link)

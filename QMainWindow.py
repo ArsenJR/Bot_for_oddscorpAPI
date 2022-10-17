@@ -31,6 +31,7 @@ class Window(QMainWindow, QObject, object):
     signal_to_close_kupon_pinnacle = pyqtSignal(bool)
     signal_start_page_pinnacle = pyqtSignal()
     signal_start_page_ggbet = pyqtSignal()
+    signal_start_page_ggbetV2 = pyqtSignal()
     signal_do_first_bet_pinnacle = pyqtSignal(list)
     signal_do_first_bet_ggbet = pyqtSignal(list)
     signal_do_second_bet_pinnacle = pyqtSignal(list)
@@ -72,6 +73,18 @@ class Window(QMainWindow, QObject, object):
 
         # словарь (id события : кол-во проставленных вилок)
         self.count_successful_in_match = {}
+        # список id поставленных вилок
+        self.list_done_fork_id = []
+
+        # id вилки, на которое мы сейчас ставим
+        self.fork_id_now = ''
+
+        # id матча, на которое мы сейчас ставим
+        self.event_id_now = ''
+
+    def closeEvent(self, event):
+        print('Выхожу')
+        event.accept()
 
     def setupUi(self):
         self.setWindowTitle("Сканер вилок с автоматизированным проставлением")
@@ -332,9 +345,61 @@ class Window(QMainWindow, QObject, object):
             list_data_to_second_bet.append(self.second_do_bet)
             list_data_to_second_bet.append(self.loose_max)
 
+            try:
+                self.ggbet_betting_results = first_bet_data[2]
+                print(self.ggbet_betting_results)
+            except:
+                pass
+
             print(list_data_to_second_bet)
             self.signal_do_second_bet_pinnacle.emit(list_data_to_second_bet)
 
+
+    def fork_is_done(self, second_betting_params):
+        try:
+            print('Первая БК')
+            print(self.ggbet_betting_results)
+            print()
+        except:
+            pass
+
+        try:
+            print('Вторая БК')
+            self.pinnacle_betting_results = second_betting_params
+            print(self.pinnacle_betting_results)
+        except:
+            pass
+
+        try:
+            report = ''
+            report += 'Спорт: ' + self.fork_betting_now['sport'] + '\n' + '\n'
+            report += self.ggbet_betting_results[0] +'\n'+'\n'
+            report += 'GGBet: ' + '\n'
+            report += self.ggbet_betting_results[3] + ' | ' + self.ggbet_betting_results[4] + '\n'
+            report += self.ggbet_betting_results[2] + ' | ' + self.ggbet_betting_results[1] + '\n' + '\n'
+            report += 'Pinnacle: '
+            report += self.pinnacle_betting_results[3].split('-')[0] + ' | ' + self.pinnacle_betting_results[4] + '\n'
+            report += self.pinnacle_betting_results[2] + ' | ' + self.pinnacle_betting_results[1]
+            print(report)
+        except:
+            print('Что-то не то...)')
+
+
+
+        self.restart_botsV2()
+
+        print(self.fork_id_now)
+        print(self.event_id_now)
+        print(self.count_successful_in_match[self.event_id_now])
+        self.count_successful_in_match[self.event_id_now] += 1
+        self.list_done_fork_id.append(self.fork_id_now)
+
+        if self.auto_betting:
+            print('Включаю сканер заново')
+            time.sleep(10)
+            self.btn_scaner_start.click()
+        else:
+            print('Не включаю сканер заново')
 
 
 
@@ -393,8 +458,6 @@ class Window(QMainWindow, QObject, object):
         # сигнал начинает выполнение функции проставления плеча на ggbet (последовательное проставление: первое плечо)
         self.signal_do_first_bet_ggbet.connect(self.ggbet_driver.first_betting)
 
-        '''# сигнал начинает выполнение функции проставления плеча на пинке (последовательное проставление: первое плечо)
-        self.signal_do_first_bet_pinnacle.connect(self.pinnacle_driver.first_betting)'''
         # сигнал начинает выполнение функции проставления плеча на ggbet (последовательное проставление: второе плечо)
         self.signal_do_second_bet_ggbet.connect(self.ggbet_driver.second_betting)
         # сигнал запускающий проставление на второй бк
@@ -404,6 +467,7 @@ class Window(QMainWindow, QObject, object):
         self.ggbet_driver.signal_error_in_getting_data.connect(self.restart_bots)
         # сигнал запускает функцию перехода на главную страницу букмекерской конторы (удаляет купон)
         self.signal_start_page_ggbet.connect(self.ggbet_driver.go_to_start_page)
+        self.signal_start_page_ggbetV2.connect(self.ggbet_driver.go_to_start_pageV2)
 
 
         self.ggbet_thread.start()
@@ -428,6 +492,9 @@ class Window(QMainWindow, QObject, object):
         self.pinnacle_driver.signal_first_bet_is_done.connect(self.do_second_bet)
         # сигнал начинает выполнение функции проставления плеча на pinnacle (последовательное проставление: второе плечо)
         self.signal_do_second_bet_pinnacle.connect(self.pinnacle_driver.second_betting)
+        self.pinnacle_driver.signal_second_bet_is_done.connect(self.fork_is_done)
+        # Сигнал перехода на главной странице в бк, в ситуации когда второе плечо не было закрыто
+        self.pinnacle_driver.signal_error_in_betting.connect(self.restart_botsV3)
 
         self.pinnacle_thread.start()
 
@@ -437,12 +504,54 @@ class Window(QMainWindow, QObject, object):
         self.signal_start_page_pinnacle.emit()
         self.signal_start_page_ggbet.emit()
 
-        print()
+        if self.auto_betting:
+            print('Запускаю сканер заново')
+            time.sleep(10)
+            self.btn_scaner_start.click()
+        else:
+            print('Не запускаю сканер')
+
+
+
+    def restart_botsV2(self):
+        # ggbet на стартовую страницу
+        # pinnacle на стартовую страницу
+        self.signal_start_page_pinnacle.emit()
+        self.signal_start_page_ggbetV2.emit()
+
+    def restart_botsV3(self):
+        # ggbet на стартовую страницу
+        # pinnacle на стартовую страницу
+        self.signal_start_page_pinnacle.emit()
+        self.signal_start_page_ggbetV2.emit()
+
+        print('Не удалось поставить второе плечо на пинке или не удалось загрузить результат ставки')
+        try:
+            report = ''
+            report += 'Спорт: ' + self.fork_betting_now['sport'] + '\n' + '\n'
+            report += self.ggbet_betting_results[0] + '\n' + '\n'
+            report += 'GGBet: ' + '\n'
+            report += self.ggbet_betting_results[3] + ' | ' + self.ggbet_betting_results[4] + '\n'
+            report += self.ggbet_betting_results[2] + ' | ' + self.ggbet_betting_results[1] + '\n' + '\n'
+            report += 'Pinnacle: ' + '\n'
+            report = 'НЕ УДАЛОСЬ ПОСТАВИТЬ (Бот не смог найти ставку или она пропала)!'
+        except:
+            print('Не удалось проставить второе плечо, не удается вывести отчет.')
+
+        if self.auto_betting:
+            print('Запускаю сканер заново')
+            time.sleep(10)
+            self.btn_scaner_start.click()
+        else:
+            print('Не запускаю сканер')
+
+
 
     """_____Проставление вилки_____"""
 
     def auto_get_cf_bet_limit(self, fork):
         fork_for_bet = fork
+        self.fork_betting_now = fork
         self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet)
         self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet)
         self.is_ggbet_data_received = False
@@ -476,6 +585,7 @@ class Window(QMainWindow, QObject, object):
                         if fork['fork_id'] == fork_key:
                             fork_for_bet = fork
                             self.signal_to_send_bet_parameter_to_ggbet.emit(fork_for_bet)
+                            time.sleep(2)
                             self.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet)
                             self.is_ggbet_data_received = False
                             self.is_pinnacle_data_received = False
@@ -493,6 +603,9 @@ class Window(QMainWindow, QObject, object):
             if fork_data['event_id'] not in self.count_successful_in_match:
                 self.count_successful_in_match[fork_data['event_id']] = 0
 
+            if fork_data['fork_id'] in self.list_done_fork_id:
+                break
+
                 # проверка на параметр макс. кол-ва ставок в собитии
             if self.count_successful_in_match[fork_data['event_id']] < self.count_forks_in_match:
                 # проверяем чтобы прибыль от вилки была в заданном диапазоне
@@ -508,6 +621,8 @@ class Window(QMainWindow, QObject, object):
                                 print(f'Нашел новую вилку {fork_data["sport"]}  ', fork_data['fork_id'])
                                 # начинаем ставить и выключаем сканнер
                                 self.list_forks_auto_betting.append(fork_data['fork_id'])
+                                self.fork_id_now = fork_data['fork_id']
+                                self.event_id_now = fork_data['event_id']
                                 self.btn_scaner_end.click()
                                 self.auto_get_cf_bet_limit(fork_data)
                                 return
@@ -561,6 +676,10 @@ class Window(QMainWindow, QObject, object):
         else:
             self.is_auto_work = False
             self.btn_do_bet.setEnabled(True)
+
+        self.fork_id_now = ''
+        self.event_id_now = ''
+
         ForkScanerClass.CHEK = True
 
         # Step 2: Create a QThread object
