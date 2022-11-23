@@ -10,12 +10,13 @@ class ggbetDriver(QObject):
     signal_with_cf_and_bet_limit = pyqtSignal(list)
     signal_error_in_getting_data = pyqtSignal()
     signal_first_bet_is_done = pyqtSignal(list)
+    signal_stop_scaner = pyqtSignal()
 
     def doWebDriver(self):
 
         self.update_count = 0
-        self.profile_id = GGBET_PORT
-        # self.profile_id = 'ef7feae4c45943c9b9285ddc3a152be0'
+        #self.profile_id = GGBET_PORT
+        self.profile_id = 'ef7feae4c45943c9b9285ddc3a152be0'
         # self.bk_link = GGBET_LINK
         self.bk_link = 'https://ggbets.co/ru/'
         self.port = get_debug_port(self.profile_id)
@@ -71,6 +72,45 @@ class ggbetDriver(QObject):
     def do_bet(self, dict):
         self.update_count = 0
         self.bet_parameter = dict
+
+        self.bet_parameter = {
+            'fork_id': '52bf84d9c1ed1d62a3',
+            'income': 1.51, 'ow_income': 0,
+            'sport': 'esports.cs',
+            'bet_type': 'WIN',
+            'event_id': '16093728',
+            'is_middles': '0',
+            'is_cyber': '1',
+            'BK1_bet': 'WIN__P1',
+            'BK1_bet_type': 'WIN',
+            'BK1_alt_bet': '',
+            'BK1_cf': 1.31,
+            'BK1_event_id': 'GGGEC83DB3B892AE',
+            'BK1_event_native_id': '5:f0c05042-4b0f-4052-bce5-4c4a220ab4cc',
+            'BK1_game': 'Team Finest vs MASONIC',
+            'BK1_href': 'https://gg.bet/ru/esports/match/natus-vincere-vs-bad-news-eagles-07-11-1',
+            'BK1_league': 'Elisa Invitational Fall 2022',
+            'BK1_name': 'gg_bet',
+            'BK1_score': '1:0',
+            'BK1_event_meta': '{"start_at":1663848000}',
+            'BK1_market_meta': '{"title_name":"Победитель","bet_name":"Natus Vincere"}',
+            'BK2_bet': 'WIN__P2',
+            'BK2_bet_type': 'WIN',
+            'BK2_alt_bet': '',
+            'BK2_cf': 4.51,
+            'BK2_event_id': 'PINECA347B908FF3',
+            'BK2_event_native_id': '1559705902',
+            'BK2_game': 'Finest vs MASONIC',
+            'BK2_href': 'https://www.pinnacle.com/ru/esports/csgo-intel-extreme-masters-rio-major/natus-vincere-vs-bad-news-eagles/1562790469',
+            'BK2_league': 'CS:GO - Elisa Invitational',
+            'BK2_name': 'pinnacle',
+            'BK2_score': '',
+            'BK2_event_meta': '{"league_id":208956,"start_at":1663847880}',
+            'BK2_market_meta': '{"key":"s;0;m","market_name":"moneyline","dest":"away","matchup_id":1559708853,"league_id":208956,"parent_id":1559705902,"participant_id":null,"is_special":false}',
+            'alive_sec': 0
+        }
+        #print(self.bet_parameter)
+
 
         if self.bet_parameter['BK1_name'] == 'gg_bet':
             self.bet_href = self.bet_parameter['BK1_href']
@@ -437,6 +477,11 @@ class ggbetDriver(QObject):
         except:
             print('GGbet:  Не нашел кнопки удалить все купоны на главном экране')
 
+        balance_now = self.check_balance()
+        print('GGBet: balance now -', balance_now)
+        if balance_now < self.balance_limit:
+            self.signal_stop_scaner.emit()
+
     def go_to_start_page(self):
         # пробую закрыть купон
         try:
@@ -457,7 +502,7 @@ class ggbetDriver(QObject):
         try:
             btns_delete_cupon = self.driver.find_elements(By.XPATH, '//div[@class="{}"]'.format(key_div_delete_cupon))
             print('GGBet: кол-во кнопок действия с купоном',len(btns_delete_cupon))
-            btn_delete_cupon = btn_delete_cupon[3]
+            btn_delete_cupon = btns_delete_cupon[3]
             btn_delete_cupon.click()
         except:
             print('GGBet: При переходе не нашел кнопку удалить купон')
@@ -522,6 +567,20 @@ class ggbetDriver(QObject):
             self.driver.get(self.bk_link)
         except:
             print('GGBet: Что-то пошло не так...')
+
+    def check_balance(self):
+        key_label_balance = "display-balance__text"
+        balance = self.driver.find_element(By.XPATH, '//span[@class="{}"]'.format(key_label_balance)).text
+        try:
+            balance = float(balance.split(' ')[0].replace(',', ''))
+        except:
+            print('Something went werong')
+            return 0
+        print('GGBet: balance =', balance)
+        return balance
+
+    def save_balance_limit(self, limit):
+        self.balance_limit = limit
 
 def get_webdriver(port):
     chrome_options = Options()

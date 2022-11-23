@@ -4,6 +4,8 @@ auto_bet = False
 how_do_bet = 1
 limit_type = 1
 limit_sum = 0
+limit_balance_pinnacle = 1000
+limit_balance_ggbet = 100000
 class DialogSettings(QDialog):
     def __init__(self,parent=None):
         super().__init__(parent)
@@ -29,7 +31,6 @@ class DialogSettings(QDialog):
         self.groupbox_sequence.setLayout(layout_affixing_alg)
         layout.addWidget(self.groupbox_sequence)
 
-
         # Ограничения по сумме ставки
         self.groupbox_bet_sum = QtWidgets.QGroupBox()
         self.groupbox_bet_sum.setTitle('Ограничения по сумме ставки')
@@ -48,6 +49,19 @@ class DialogSettings(QDialog):
         layout_bet_sum.addWidget(self.sum_line)
         self.groupbox_bet_sum.setLayout(layout_bet_sum)
         layout.addWidget(self.groupbox_bet_sum)
+
+        # Последовательность проставления
+        self.groupbox_min_balance = QtWidgets.QGroupBox()
+        self.groupbox_min_balance.setTitle('Минимальный баланс для работы бота')
+        layout_min_balance = QtWidgets.QVBoxLayout()
+        self.min_balance_pinnacle = QtWidgets.QLineEdit()
+        self.min_balance_pinnacle.setPlaceholderText('Введите минимальный баланс для Pinnacle')
+        self.min_balance_ggbet = QtWidgets.QLineEdit()
+        self.min_balance_ggbet.setPlaceholderText('Введите минимальный баланс для GGBet')
+        layout_min_balance.addWidget(self.min_balance_pinnacle)
+        layout_min_balance.addWidget(self.min_balance_ggbet)
+        self.groupbox_min_balance.setLayout(layout_min_balance)
+        layout.addWidget(self.groupbox_min_balance)
 
         # Автоматическое проставление на киберспорт
         self.groupbox_auto_betting = QtWidgets.QGroupBox()
@@ -102,9 +116,14 @@ class DialogSettings(QDialog):
         else:
             auto_bet = False
 
-        if limit_sum:
+        global limit_balance_pinnacle, limit_balance_ggbet
+        limit_balance_pinnacle = float(self.min_balance_pinnacle.text())
+        limit_balance_ggbet = float(self.min_balance_ggbet.text())
+        if limit_sum and limit_balance_pinnacle and limit_balance_ggbet:
             print(f'Тип последовательности проставления {how_do_bet}')
             print(f'Тип ограничений по сумме ставки {limit_type}, максимальная сумма {limit_sum}')
+            print('Ограниченися по балансу:')
+            print(f'Pinnacle - {limit_balance_pinnacle}, GGBet - {limit_balance_ggbet}')
             print(f'Автоматическое проставление {auto_bet}')
             self.accept()
         else:
