@@ -155,7 +155,7 @@ class WidgetSettingBK(QWidget):
         if self.currency_box.currentIndex() == 0:
             self.currency_txt.setText('1')
         else:
-            self.currency_txt.setText('61.26')
+            self.currency_txt.setText('60.00')
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -18,7 +18,8 @@ class fonbetDriver(QObject):
         self.update_list = 0
 
         self.profile_id = 'fd9dad5d82c44a0b9855e35f89c5cb63'
-        #self.profile_id = WidgetPageComboSettingsBK.FONBET_PORT
+        self.profile_id = 'b983527da61e4a2c86f9c11d5fac5dd8'
+        self.profile_id = WidgetPageComboSettingsBK.FONBET_PORT
         #print('Fonbet: Заданная ссылка -', WidgetPageComboSettingsBK.FONBET_LINK)
 
         # self.bk_link = PINNACLE_LINK
@@ -110,7 +111,7 @@ class fonbetDriver(QObject):
         self.driver.get(bet_link)
 
         # активная вкладка раздела ставок
-        key_active_game_part = 'tab--6z9yV _state_selected--7s9cA'
+        key_active_game_part = 'tab--4RNtV _state_selected--408s1'
         try:
             self.wait.until(EC.visibility_of_element_located((By.XPATH, '//div[@class="{}"]'.format(key_active_game_part))))
         except:
@@ -138,6 +139,7 @@ class fonbetDriver(QObject):
 
         print('Пытаюсь закрыть купон')
         self.try_close_cupons()
+
 
         if bet_type == 'SET_WIN' or bet_type == 'WIN':
             self.do_win_bet(bet_name, field_with_our_bet)
@@ -233,28 +235,43 @@ class fonbetDriver(QObject):
         input_sum_lable.clear()
         input_sum_lable.send_keys(str(sum))
 
+        time.sleep(1)
+        key_btn_betting = 'button--9z8aU normal-bet--6H68z _use_color_settings--2h94A _spec1--1haRL _spec2--2pfTB'
         try:
-            key_btn_betting = 'button--9z8aU normal-bet--6H68z _use_color_settings--2h94A _spec1--1haRL _spec2--2pfTB'
             btn_do_bet = self.driver.find_element(By.XPATH, '//div[@class="{}"]'.format(key_btn_betting))
+            print('Fonbet -  нашел кнопку поставить')
             btn_do_bet.click()
-            print('Отправляю сигнал')
+            print('Отправляю сигнал, получилось поставить.')
         except:
             print('Fonbet - не получилось поставить ')
 
     def try_close_cupons(self):
         # ищем кнопку закрыть купон перед ставкой
-
-        key_btn_close_cupon = 'stakes-head__clear--1ESbd _use_color_settings--2h94A'
-
+        print('Test zone 0')
         try:
+            print('start')
+            self.driver.find_element(By.XPATH, '//div[@class="stakes-head__clear--1ESbd _use_color_settings--2h94A"]').click()
+            print('end')
+        except:
+            print('Fonbet - купон был пуст')
+            return
+        print('Fonbet - удалил старый купон')
+        return
+
+        """try:
+            print('Fonbet - Ищу купон')
             btn_close_cupon = self.driver.find_element(By.XPATH, '//div[@class="{}"]'.format(key_btn_close_cupon))
+            print('Fonbet - Нашел купон')
+            time.sleep(1)
+            print(btn_close_cupon)
             btn_close_cupon.click()
             print('Закрыли купон')
         except:
             btn_close_cupon = None
-            print('Купон был пуст')
+            print('Купон был пуст')"""
 
-        return
+
+
 
     def get_cf_and_bet_limit(self):
         # получаем кф и лимит
@@ -394,7 +411,10 @@ class fonbetDriver(QObject):
 
         if true_row:
             btn_handicap_bet = true_row.find_element(By.XPATH, './/div[@class="{}"]'.format(key_btn_total_bet))
-            btn_handicap_bet.click()
+            if btn_handicap_bet:
+                btn_handicap_bet.click()
+            else:
+                print('Нет такой ставки')
         else:
             print('Нет такой ставки')
 
@@ -467,9 +487,9 @@ class fonbetDriver(QObject):
     def open_bet_part(self, bet):
 
         # активная вкладка раздела ставок
-        key_active_game_part = 'tab--6z9yV _state_selected--7s9cA'
+        key_active_game_part = 'tab--4RNtV _state_selected--408s1'
         # осталные вкладки радела ставок
-        key_game_part = 'tab--6z9yV'
+        key_game_part = 'tab--4RNtV'
 
         page_is_clicked = False
 

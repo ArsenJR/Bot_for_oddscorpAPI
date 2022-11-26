@@ -62,8 +62,8 @@ class BotWindow(QWidget):
 
 
     def test_func(self):
-        self.main_window.open_fonbet_driver()
-        #self.main_window.open_pinnacle_driver()
+        #self.main_window.open_fonbet_driver()
+        self.main_window.open_pinnacle_driver()
         #self.btn_open_octo.setEnabled(False)
 
 
@@ -71,7 +71,7 @@ class BotWindow(QWidget):
     def test_func2(self):
         print('Second')
 
-        self.main_window.signal_test_report_fonbet.emit()
+        self.main_window.signal_test_do_bet_pinnacle.emit()
 
         #fork_for_bet ={'AAA': 'SSSS'}
         #self.main_window.first_data_is_ready = False

@@ -35,6 +35,7 @@ class MainWindow(QMainWindow, QObject, object):
 
             # тествые сигналы (потом убрать)
     signal_test_report_fonbet = pyqtSignal()
+    signal_test_do_bet_pinnacle = pyqtSignal()
 
 
     def __init__(self, parent=None):
@@ -231,6 +232,31 @@ class MainWindow(QMainWindow, QObject, object):
     def error_in_getting_data(self):
         print('ошибка в получении данных')
         #################### signal_start_page_pinnacle
+        #first_bk = self.bot_widget.fork_now['BK1_name']
+        #second_bk = self.bot_widget.fork_now['BK2_name']
+        first_bk = 'fonbet'
+        second_bk = 'pinnacle'
+        if first_bk == 'fonbet' or second_bk == 'fonbet':
+            print('Рестарт фонбет')
+            # time.sleep(2)
+        if first_bk == 'ggbet' or second_bk == 'ggbet':
+            print('Рестарт ггбет')
+            # time.sleep(2)
+        if first_bk == 'pinnacle' or second_bk == 'pinnacle':
+            print('Рестарт пиннакле')
+            #time.sleep(2)
+        self.signal_start_page_pinnacle.emit()
+        time.sleep(2)
+        self.signal_start_page_fonbet.emit()
+
+        print('Заданное время: ', self.pause_time)
+        time_to_scanner = 30 * 1000         # В последствии после 30 сек меняем на вводимые параметры
+        print('Пауза после проставления')
+        self.timer.start(time_to_scanner)
+        return
+
+    def fork_is_done(self):
+        print('Главное окно, ставки сделаны, перехожу в режим ожидания')
         first_bk = self.bot_widget.fork_now['BK1_name']
         second_bk = self.bot_widget.fork_now['BK2_name']
         if first_bk == 'fonbet' or second_bk == 'fonbet':
@@ -241,7 +267,7 @@ class MainWindow(QMainWindow, QObject, object):
             # time.sleep(2)
         if first_bk == 'pinnacle' or second_bk == 'pinnacle':
             print('Рестарт пиннакле')
-            #time.sleep(2)
+            # time.sleep(2)
         self.signal_start_page_pinnacle.emit()
         time.sleep(2)
         self.signal_start_page_fonbet.emit()
@@ -307,6 +333,11 @@ class MainWindow(QMainWindow, QObject, object):
         self.pinnacle_driver.signal_error_in_getting_data.connect(self.error_in_getting_data)
         # сигнал перехода на главный экран
         self.signal_start_page_pinnacle.connect(self.pinnacle_driver.go_to_start_page)
+        # сигнал о удачном проставлении второго плеча
+        self.pinnacle_driver.signal_second_bet_is_done.connect(self.fork_is_done)
+
+        # тестовые сигналы проверить betting report и проставление
+        self.signal_test_do_bet_pinnacle.connect(self.pinnacle_driver.test_funct_do_bet_report)
 
         self.pinnacle_thread.start()
 
