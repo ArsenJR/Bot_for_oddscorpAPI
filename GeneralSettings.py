@@ -1,6 +1,7 @@
 from AllLibraries import *
 from BetFilterSettings import BetFilter
 from BlackWhiteListSettings import BlackWhiteList
+from BkOrder import BKOrderWidget
 
 class GeneralSettings(QWidget):
     def __init__(self, parent=None):
@@ -13,7 +14,7 @@ class GeneralSettings(QWidget):
         self.setLayout(layout)
         # переход между страницами
         self.pageCombo = QComboBox()
-        self.pageCombo.addItems(["Фильтр", "Ключевые слова"])
+        self.pageCombo.addItems(["Фильтр", "Ключевые слова", "Правила проставления"])
         self.pageCombo.activated.connect(self.switchPage)
         # Create the stacked layout
         self.stackedLayout = QStackedLayout()
@@ -25,6 +26,10 @@ class GeneralSettings(QWidget):
         self.black_white_list_settings = BlackWhiteList(self)
         self.stackedLayout.addWidget(self.black_white_list_settings)
 
+        # третья страница
+        self.bk_order_widget = BKOrderWidget(self)
+        self.stackedLayout.addWidget(self.bk_order_widget)
+
         layout.addWidget(self.pageCombo)
         layout.addLayout(self.stackedLayout)
 
@@ -35,6 +40,8 @@ class GeneralSettings(QWidget):
         self.main_window.save_filter_settings()
     def save_black_white_list(self):
         self.main_window.save_black_white_list()
+    def save_order_ruels(self):
+        self.main_window.save_order_ruels()
 
     def get_data(self):
         if self.bet_filter_settings.is_settings_saved:

@@ -5,7 +5,6 @@ from WidgetBettingSettings import BettingSettings
 from GeneralSettings import GeneralSettings
 from BotWidget import BotWindow
 
-from ChooseOctoPorts import ChoosePortOcto
 from GGBetDriver import *
 from PinnacleDriver import *
 from FonbetDriver import *
@@ -25,17 +24,21 @@ class MainWindow(QMainWindow, QObject, object):
 
             # сигнал проставления первого плеча
     signal_do_first_bet_fonbet = pyqtSignal(list)
+    signal_do_first_bet_ggbet = pyqtSignal(list)
 
             # сигнал проставления второго плеча
     signal_do_second_bet_pinnacle = pyqtSignal(list)
+    signal_do_second_bet_fonbet = pyqtSignal(list)
 
             # сигнал переход на стартовую страницу
     signal_start_page_pinnacle = pyqtSignal()
     signal_start_page_fonbet = pyqtSignal()
+    signal_start_page_ggbet = pyqtSignal()
 
             # тествые сигналы (потом убрать)
     signal_test_report_fonbet = pyqtSignal()
     signal_test_do_bet_pinnacle = pyqtSignal()
+    signal_test_do_bet_ggbet = pyqtSignal(int)
 
 
     def __init__(self, parent=None):
@@ -48,6 +51,7 @@ class MainWindow(QMainWindow, QObject, object):
         self.bet_bk_settings_is_saved = False
         self.bet_filter_settings_is_saved = False
         self.bet_settings_is_saved = False
+        self.order_ruels_is_saved = False
 
         self.auto_betting = True
 
@@ -138,6 +142,7 @@ class MainWindow(QMainWindow, QObject, object):
         bet_type = self.bot_widget.fork_now['bet_type']
 
         # определяем первую контору
+
         self.first_bk, self.first_cf, self.first_limit, \
         self.second_bk, self.second_cf, self.second_limit = order_of_betting(first_bk=self.first_bk,
                                                                              first_cf=self.first_cf,
@@ -151,13 +156,16 @@ class MainWindow(QMainWindow, QObject, object):
                                                                              how_do_total=self.how_betting_total,
                                                                              how_do_handicap=self.how_betting_handicap)
         #bet_sum = self.get_first_bet_sum() ПОЛУЧАЕМ СУММУ ПО СЛОВАРЮ ИЛИ КАК_ТО ПРИДУМАТЬ
-        bet_sum = self.fonbet_fix_bet
-        exchange_rate = self.fonbet_exchange_rate
-        another_exchange_rate = self.pinnacle_exchange_rate
-        #####
-        #bet_sum = 1000
-        #exchange_rate = 1
-        #another_exchange_rate = 60
+        #bet_sum = self.fonbet_fix_bet
+        #exchange_rate = self.fonbet_exchange_rate
+        #another_exchange_rate = self.pinnacle_exchange_rate
+        ##############################
+
+        bet_sum, exchange_rate, another_exchange_rate = self.get_bet_sum_and_ex_rate(self.first_bk, self.second_bk)
+
+        if not bet_sum:
+            print('Какая-то ошибка при получении суммы (где порядок проставления), сканер небходимо перезапустить')
+            return
 
 
         # проверяем подходит ли нам вилка
@@ -185,10 +193,14 @@ class MainWindow(QMainWindow, QObject, object):
         if self.first_bk == 'fonbet':
             print('Ставим фонбет. Отправка сигнала')
             self.signal_do_first_bet_fonbet.emit(data_to_betting)
-        if self.first_bk == 'ggbet':
+            return
+        if self.first_bk == 'gg_bet':
             print('Ставим ггбет, доработать.')
+            self.signal_do_first_bet_ggbet.emit(data_to_betting)
+            return
         if self.first_bk == 'pinnacle':
             print('Ставим пинку, доработать.')
+            return
 
         #data_to_betting = [bet_sum, exchange_rate, self.second_limit, self.second_cf,
         #                   another_exchange_rate, self.min_profit, self.max_profit,
@@ -197,14 +209,44 @@ class MainWindow(QMainWindow, QObject, object):
         #self.signal_do_first_bet_fonbet.emit(data_to_betting)
 
 
+    def get_bet_sum_and_ex_rate(self, first_bk, second_bk):
+
+        bet_sum = None
+        exchange_rate = None
+        another_exchange_rate = None
+
+        if first_bk == 'gg_bet':
+            bet_sum = self.ggbet_fix_bet
+            exchange_rate = self.ggbet_exchange_rate
+        if first_bk == 'fonbet':
+            bet_sum = self.fonbet_fix_bet
+            exchange_rate = self.fonbet_exchange_rate
+        if first_bk == 'pinnacle':
+            bet_sum = self.pinnacle_fix_bet
+            exchange_rate = self.pinnacle_exchange_rate
+
+        if second_bk == 'gg_bet':
+            another_exchange_rate = self.ggbet_exchange_rate
+        if second_bk == 'fonbet':
+            another_exchange_rate = self.fonbet_exchange_rate
+        if second_bk == 'pinnacle':
+            another_exchange_rate = self.pinnacle_exchange_rate
+
+        try:
+            return float(bet_sum), float(exchange_rate), float(another_exchange_rate)
+        except:
+            return  None, None, None
 
     def do_second_bet(self, data):
         first_bet_sum = data[0]
         first_cf = data[1]
-        first_exchange_rate = self.fonbet_exchange_rate
-        exchange_rate = self.pinnacle_exchange_rate
+        print('Main window - получил кф и сумму: ', first_cf, first_bet_sum)
+        #first_exchange_rate = self.fonbet_exchange_rate
+        #exchange_rate = self.pinnacle_exchange_rate
         seconds_do_bet = self.time_second_bet
         loose_max = self.procent_loose
+        _, first_exchange_rate, exchange_rate = self.get_bet_sum_and_ex_rate(self.first_bk, self.second_bk)
+        print('Результаты ф-кции. первый и второй курс валют - ', first_exchange_rate, exchange_rate)
         """first_exchange_rate = 1
         exchange_rate = 60
         seconds_do_bet = 10
@@ -212,14 +254,15 @@ class MainWindow(QMainWindow, QObject, object):
 
         print('Посылаю сигнал во вторую контору')
         data_to_betting = [first_cf, first_bet_sum, first_exchange_rate, exchange_rate, seconds_do_bet, loose_max]
-        print('Данные для проставления пинакл:', data_to_betting)
+        print('Данные для проставления аторого плеча:', data_to_betting)
 
         if self.second_bk == 'pinnacle':
             print('Проставляю второе плечо на пинке. Посылаю сигнал.')
             self.signal_do_second_bet_pinnacle.emit(data_to_betting)
 
         if self.second_bk == 'fonbet':
-            print('Проставляю второе плечо на фонбете. Доработать...')
+            print('Проставляю второе плечо на фонбете. Посылаю сигнал')
+            self.signal_do_second_bet_fonbet.emit(data_to_betting)
 
         if self.second_bk == 'ggbet':
             print('Проставляю второе плечо на ггбет. Доработать...')
@@ -232,50 +275,53 @@ class MainWindow(QMainWindow, QObject, object):
     def error_in_getting_data(self):
         print('ошибка в получении данных')
         #################### signal_start_page_pinnacle
-        #first_bk = self.bot_widget.fork_now['BK1_name']
-        #second_bk = self.bot_widget.fork_now['BK2_name']
-        first_bk = 'fonbet'
-        second_bk = 'pinnacle'
+        first_bk = self.bot_widget.fork_now['BK1_name']
+        second_bk = self.bot_widget.fork_now['BK2_name']
+        #first_bk = 'fonbet'
+        #second_bk = 'pinnacle'
         if first_bk == 'fonbet' or second_bk == 'fonbet':
             print('Рестарт фонбет')
-            # time.sleep(2)
-        if first_bk == 'ggbet' or second_bk == 'ggbet':
+            #self.signal_start_page_fonbet.emit()
+            #time.sleep(2)
+        if first_bk == 'gg_bet' or second_bk == 'gg_bet':
             print('Рестарт ггбет')
+            #self.signal_start_page_ggbet.emit()
             # time.sleep(2)
         if first_bk == 'pinnacle' or second_bk == 'pinnacle':
             print('Рестарт пиннакле')
+            #self.signal_start_page_pinnacle.emit()
             #time.sleep(2)
-        self.signal_start_page_pinnacle.emit()
-        time.sleep(2)
-        self.signal_start_page_fonbet.emit()
 
-        print('Заданное время: ', self.pause_time)
+        print('Заданное время: 30 сек.')
         time_to_scanner = 30 * 1000         # В последствии после 30 сек меняем на вводимые параметры
         print('Пауза после проставления')
-        self.timer.start(time_to_scanner)
+        #self.timer.start(time_to_scanner)
         return
 
-    def fork_is_done(self):
+    def fork_is_done(self, data=None):
         print('Главное окно, ставки сделаны, перехожу в режим ожидания')
         first_bk = self.bot_widget.fork_now['BK1_name']
         second_bk = self.bot_widget.fork_now['BK2_name']
         if first_bk == 'fonbet' or second_bk == 'fonbet':
             print('Рестарт фонбет')
+            # self.signal_start_page_fonbet.emit()
             # time.sleep(2)
-        if first_bk == 'ggbet' or second_bk == 'ggbet':
+        if first_bk == 'gg_bet' or second_bk == 'gg_bet':
             print('Рестарт ггбет')
+            # self.signal_start_page_ggbet.emit()
             # time.sleep(2)
         if first_bk == 'pinnacle' or second_bk == 'pinnacle':
             print('Рестарт пиннакле')
+            # self.signal_start_page_pinnacle.emit()
             # time.sleep(2)
-        self.signal_start_page_pinnacle.emit()
-        time.sleep(2)
-        self.signal_start_page_fonbet.emit()
+        #self.signal_start_page_pinnacle.emit()
+        #time.sleep(2)
+        #self.signal_start_page_fonbet.emit()
 
         print('Заданное время: ', self.pause_time)
         time_to_scanner = self.pause_time * 1000
         print('Пауза после проставления')
-        self.timer.start(time_to_scanner)
+        #self.timer.start(time_to_scanner)
         return
 
     def timer_start_scanner(self):
@@ -314,6 +360,22 @@ class MainWindow(QMainWindow, QObject, object):
         self.ggbet_thread.started.connect(self.ggbet_driver.doWebDriver)
         # сигнал начала функции открытия купона
         self.signal_to_send_bet_parameter_to_ggbet.connect(self.ggbet_driver.do_bet)
+        # сигнал с кф и лимитом ставки (посылается в main window)
+        self.ggbet_driver.signal_with_cf_and_bet_limit.connect(self.cf_and_limit_is_get)
+        # сигнал проставления первого плеча
+        self.signal_do_first_bet_ggbet.connect(self.ggbet_driver.first_betting)
+        # сигнал при завершении проставления первого плеча
+        self.ggbet_driver.signal_first_bet_is_done.connect(self.do_second_bet)
+        # сигнал о ошибке в получении данных
+        self.ggbet_driver.signal_error_in_getting_data.connect(self.error_in_getting_data)
+        # сигнал перехода на главный экран
+        self.signal_start_page_ggbet.connect(self.ggbet_driver.go_to_start_page)
+
+
+
+        # тестовый сигнал проставления и отчета
+        self.signal_test_do_bet_ggbet.connect(self.ggbet_driver.do_bet_by_sum)
+
 
         self.ggbet_thread.start()
 
@@ -352,18 +414,28 @@ class MainWindow(QMainWindow, QObject, object):
         self.fonbet_driver.signal_with_cf_and_bet_limit.connect(self.cf_and_limit_is_get)
         # сигнал проставления первого плеча
         self.signal_do_first_bet_fonbet.connect(self.fonbet_driver.betting_first)
+        # сигнал проставления второго плеча
+        self.signal_do_second_bet_fonbet.connect(self.fonbet_driver.second_betting)
         # сигнал при завершении проставления первого плеча
         self.fonbet_driver.signal_first_bet_is_done.connect(self.do_second_bet)
         # сигнал о ошибке в получении данных
         self.fonbet_driver.signal_error_in_getting_data.connect(self.error_in_getting_data)
         # сигнал перехода на главный экран
         self.signal_start_page_fonbet.connect(self.fonbet_driver.go_to_start_page)
+        # сигнал о удачном проставлении второго плеча
+        self.fonbet_driver.signal_second_bet_is_done.connect(self.fork_is_done)
 
         # тестовые сигналы проверить betting report
         self.signal_test_report_fonbet.connect(self.fonbet_driver.get_betting_report)
 
 
         self.fonbet_thread.start()
+
+    def save_order_ruels(self):
+        self.dict_order_ruels = self.general_settings_widget.bk_order_widget.ruels_dict
+        print(self.dict_order_ruels)
+
+        self.order_ruels_is_saved = True
 
     def save_black_white_list(self):
         self.black_list = self.general_settings_widget.black_white_list_settings.black_list_words

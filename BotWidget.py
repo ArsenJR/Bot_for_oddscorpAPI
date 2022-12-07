@@ -10,6 +10,7 @@ class BotWindow(QWidget):
 
         self.main_window = parent
         self.auto_betting = True
+        #self.auto_betting = False
         self.count_successful_in_match = {}
         self.list_done_fork_id = []
 
@@ -63,24 +64,20 @@ class BotWindow(QWidget):
 
     def test_func(self):
         #self.main_window.open_fonbet_driver()
-        self.main_window.open_pinnacle_driver()
+        #self.main_window.open_pinnacle_driver()
+        self.main_window.open_ggbet_driver()
         #self.btn_open_octo.setEnabled(False)
+
+        #self.main_window.get_bet_sum_and_ex_rate('gg_bet', 'pinnacle')
 
 
 
     def test_func2(self):
         print('Second')
 
-        self.main_window.signal_test_do_bet_pinnacle.emit()
-
-        #fork_for_bet ={'AAA': 'SSSS'}
-        #self.main_window.first_data_is_ready = False
-        #self.main_window.signal_to_send_bet_parameter_to_pinnacle.emit(fork_for_bet)
-        #time.sleep(2)
-        #self.main_window.signal_to_send_bet_parameter_to_fonbet.emit(fork_for_bet)
-
-        #data_to_betting = [1000, 1, 1000, 1.5, 60, 0, 800, 1.1, 8]
-        #self.main_window.signal_do_first_bet_fonbet.emit(data_to_betting)
+        #self.main_window.signal_test_do_bet_pinnacle.emit()
+        #self.main_window.signal_do_first_bet_ggbet.emit([500, 1, 100, 5.1, 60, 1, 300, 1.1, 8.5])
+        self.main_window.signal_test_do_bet_ggbet.emit(50)
 
 
     def start_scaner(self):
@@ -95,8 +92,11 @@ class BotWindow(QWidget):
         if not self.main_window.bet_settings_is_saved:
             self.error = QMessageBox.critical(self, "Ошибка", "Заполните настройки 'Ставки'")
             return
-
-        self.wich_bk_list = ['pinnacle', 'fonbet']       # в последствии считывать
+        if not self.main_window.order_ruels_is_saved:
+            self.error = QMessageBox.critical(self, "Ошибка", "Заполните настройки 'Правила проставления'")
+            return
+        self.wich_bk_list = ['pinnacle', 'fonbet', 'gg_bet']       # в последствии считывать
+        #self.wich_bk_list = self.main_window.wich_bk_list
 
         print(f'Диапазон прибыли: {self.main_window.min_profit} - {self.main_window.max_profit}')
         print(f'Диапазон коэффициентов: {self.main_window.min_cf} - {self.main_window.max_cf}')
@@ -105,6 +105,7 @@ class BotWindow(QWidget):
         print(f'Заданные типы ставок: {self.main_window.list_bet_type}')
         print(f'черный лист: {self.main_window.black_list}')
         print(f'Белый лист: {self.main_window.white_list}')
+        print('Список контор: ', self.wich_bk_list)
 
 
         self.main_windowfirst_data_is_ready = False
@@ -119,10 +120,12 @@ class BotWindow(QWidget):
             return False
         self.scanerEnd()
         self.main_window.first_data_is_ready = False
-        self.main_window.signal_to_send_bet_parameter_to_pinnacle.emit(fork)
-        time.sleep(2)
+        print('Отправляю сигнал')
+        self.main_window.signal_to_send_bet_parameter_to_ggbet.emit(fork)
+        #self.main_window.signal_to_send_bet_parameter_to_pinnacle.emit(fork)
+        #time.sleep(2)
         #self.test_func2()
-        self.main_window.signal_to_send_bet_parameter_to_fonbet.emit(fork)
+        #self.main_window.signal_to_send_bet_parameter_to_fonbet.emit(fork)
 
 
     def get_fork_data(self):
@@ -256,6 +259,10 @@ class BotWindow(QWidget):
                 print('Не прошел по черному листу')
                 continue
 
+            """if self.is_bk_fit(fork['BK1_name'], fork['BK2_name']):
+                #print('Не ставим!')
+                continue"""
+
             if fork['sport'] not in self.main_window.list_sport_name:
                 #print('Тип спорта не входит в заданные значения')
                 continue
@@ -284,6 +291,11 @@ class BotWindow(QWidget):
                 print('Прибыль не подходит')
                 continue
 
+            if self.is_bk_fit(fork['BK1_name'], fork['BK2_name']):
+                print('Не ставим!')
+                print(fork['BK1_name'], fork['BK2_name'])
+                continue
+
             print('Начинаем проставлять вилку')
             print('return')
             print(fork)
@@ -295,7 +307,7 @@ class BotWindow(QWidget):
                 print('Отправляю сигнао в pinnacle driver для открытия купона')
                 self.main_window.signal_to_send_bet_parameter_to_pinnacle.emit(fork)
                 time.sleep(2)
-            if fork['BK1_name'] == 'ggbet' or fork['BK2_name'] == 'ggbet':
+            if fork['BK1_name'] == 'gg_bet' or fork['BK2_name'] == 'gg_bet':
                 print('Отправляю сигнао в ggbet driver для открытия купона')
                 self.main_window.signal_to_send_bet_parameter_to_ggbet.emit(fork)
                 time.sleep(2)
@@ -311,6 +323,29 @@ class BotWindow(QWidget):
             return
 
 
+    def is_bk_fit(self, first_bk, second_bk):
+        #print('Проверка пары бк')
+        all_pairs = self.main_window.dict_order_ruels.keys()
+        bk_pair_01 = first_bk + ' - ' + second_bk
+        bk_pair_02 = second_bk + ' - ' + first_bk
+
+        if bk_pair_01 in all_pairs:
+            if self.main_window.dict_order_ruels[bk_pair_01] != 'None':
+                print('Пара проставляется(список)')
+                return False
+            else:
+                #print('Пара не проставляется (список)')
+                return True
+        elif bk_pair_02 in all_pairs:
+            if self.main_window.dict_order_ruels[bk_pair_02] != 'None':
+                print('Пара проставляется (список)')
+                return False
+            else:
+                #print('Пара не проставляется (список)')
+                return True
+        else:
+            #print('Пара не найдена (в списоке)')
+            return True
 
     def is_fork_in_black_list(self, fork):
 

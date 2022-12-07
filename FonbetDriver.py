@@ -12,6 +12,8 @@ class fonbetDriver(QObject):
     signal_first_bet_is_done = pyqtSignal(list)
     # сигнал с ошибкой открытия купона
     signal_error_in_getting_data = pyqtSignal()
+    # сигнал с инфо о ставке (при проставлении второго плеча)
+    signal_second_bet_is_done = pyqtSignal(list)
 
     def doWebDriver(self):
 
@@ -200,6 +202,81 @@ class fonbetDriver(QObject):
             print('Не получил отчет по Fonbet')
 
 
+    def second_betting(self, first_bet_data):
+        print('Fonbet - данные для закрытия второго плеча: ', first_bet_data)
+        first_cf = float(first_bet_data[0])
+        first_bet_sum = float(first_bet_data[1])
+        first_exchange_rate = first_bet_data[2]
+        exchange_rate = first_bet_data[3]
+        seconds_do_bet = first_bet_data[4]
+        loose_max = first_bet_data[5]
+
+        try:
+            self.driver.minimize_window()
+            self.driver.maximize_window()
+        except:
+            time.sleep(1)
+            self.driver.minimize_window()
+            self.driver.maximize_window()
+
+        cf_now, limit_now = self.get_cf_and_bet_limit()
+
+        if cf_now:
+            new_total_prob = (1 / cf_now) + (1 / first_cf)
+        else:
+            new_total_prob = 2
+
+        if new_total_prob <= 1:
+            print('Fonbet: Считаю сумму ставки для второго плеча')
+            bet_sum = round(((first_bet_sum * first_cf * first_exchange_rate) / cf_now) / exchange_rate)
+            print('Fonbet: Сумма ставки -', bet_sum)
+            # ставим
+            self.do_bet_by_sum(bet_sum)
+            # пробуем кф
+            cf, bet_sum = self.get_betting_report()
+            if cf and bet_sum:
+                self.signal_second_bet_is_done.emit([bet_sum, cf])
+                print('Сделал ставку, добавить сигнал с результатом. ДОРАБОТАТЬ (вроде сделал). ')
+                return
+            else:
+                print('Не получил отчет по Fonbet')
+
+        # Поставить не удалось, пробую снова (макс. время перекрытия плеча)
+        for i in range(seconds_do_bet):
+            time.sleep(1)
+            cf_now = self.get_cf()
+
+            if cf_now:
+                new_total_prob = (1 / cf_now) + (1 / first_cf)
+            else:
+                new_total_prob = 2
+
+            if new_total_prob <= 1:
+                break
+
+        print('Финальная попытка проставления. Макс. разрешенные потери - ', loose_max)
+
+        cf_now, limit_now = self.get_cf_and_bet_limit()
+
+        income_now = ((cf_now * first_cf) / (cf_now + first_cf)) * 100
+        print('Прибыль сейчас = ', income_now)
+        if income_now >= (100 - loose_max):
+            print('Fonbet: Считаю сумму ставки для второго плеча')
+            bet_sum = round(((first_bet_sum * first_cf * first_exchange_rate) / cf_now) / exchange_rate)
+            print('Fonbet: Сумма ставки -', bet_sum)
+            # ставим
+            self.do_bet_by_sum(bet_sum)
+            # пробуем кф
+            cf, bet_sum = self.get_betting_report()
+            if cf and bet_sum:
+                print('Fonbet - удалось закрыть плечо')
+                self.signal_second_bet_is_done.emit([bet_sum, cf])
+                return
+            else:
+                print('Не получил отчет по Fonbet')
+                return
+        print('Плечо не удалось закрыть')
+        return
 
     def get_betting_report(self):
         try:
@@ -235,12 +312,13 @@ class fonbetDriver(QObject):
         input_sum_lable.clear()
         input_sum_lable.send_keys(str(sum))
 
-        time.sleep(1)
+        time.sleep(2)
         key_btn_betting = 'button--9z8aU normal-bet--6H68z _use_color_settings--2h94A _spec1--1haRL _spec2--2pfTB'
         try:
             btn_do_bet = self.driver.find_element(By.XPATH, '//div[@class="{}"]'.format(key_btn_betting))
             print('Fonbet -  нашел кнопку поставить')
             btn_do_bet.click()
+            time.sleep(3)
             print('Отправляю сигнал, получилось поставить.')
         except:
             print('Fonbet - не получилось поставить ')
@@ -289,6 +367,8 @@ class fonbetDriver(QObject):
             print('Лимит =', limit_now)
             print('Коэффициент =', cf_now)
             return cf_now, limit_now
+        else:
+            return None, None
 
     def get_cf(self):
 
@@ -304,7 +384,11 @@ class fonbetDriver(QObject):
             new_cf_btn.click()
 
         key_cf_span = 'v-current--6su1Q'
-        cf_span = self.driver.find_element(By.XPATH, '//span[@class="{}"]'.format(key_cf_span))
+        try:
+            cf_span = self.driver.find_element(By.XPATH, '//span[@class="{}"]'.format(key_cf_span))
+        except:
+            cf_span = 1
+            print('Fonbet - что-то не так с получением кф')
         return float(cf_span.text)
 
     def get_bet_limit(self):
@@ -541,9 +625,7 @@ class fonbetDriver(QObject):
             self.driver.maximize_window()
 
         self.try_close_cupons()
-
         # get_balance
-
         self.driver.get(self.bk_link)
 def get_webdriver(port):
     chrome_options = Options()

@@ -156,12 +156,14 @@ class pinnacleDriver(QObject):
         # дожидаемся прогрузки страницы
         key_loading = 'style_button__3llZm'
         try:
-            WebDriverWait(self.driver, 4).until(
+            WebDriverWait(self.driver, 10).until(
                 EC.visibility_of_element_located((By.XPATH, '//button[@class="{}"]'.format(key_loading))))
         except:
             print('Pinnacle:  Не дождался кнопки "Все"')
             #self.signal_error_in_getting_data.emit()
             #return
+
+        #time.sleep(4)
 
         #### нажимаем кнопку "ВСЕ"
         page_btns = self.driver.find_elements(By.XPATH, '//button[@class="{}"]'.format(key_loading))
@@ -180,7 +182,7 @@ class pinnacleDriver(QObject):
             print('Pinnacle - Открыл вкладку "ВСЕ"')
         else:
             print('Pinnacle - Не удалось открыть все ставки')
-            return
+            #return
         ####
 
         try:
@@ -640,12 +642,13 @@ class pinnacleDriver(QObject):
 
         if cf_now != 1.0:
             new_total_prob = (1 / cf_now) + (1 / ggbet_cf)
+            print('Pinnacle - есть ли вилка = ', new_total_prob)
         else:
             new_total_prob = 2
 
         if new_total_prob <= 1:
             print('Pinnacle: Считаю сумму ставки для второго плеча')
-            bet_sum = round(((ggbet_sum * ggbet_cf) / cf_now) / exchange_rate)
+            bet_sum = round(((ggbet_sum * ggbet_cf * ggbet_exchange_rate) / cf_now) / exchange_rate)
             print('Pinnacle: Сумма ставки -', bet_sum)
             self.do_bet_by_sum(bet_sum)
             ##### ТЕТСОВАЯ ЗОНА #####
@@ -688,7 +691,7 @@ class pinnacleDriver(QObject):
                     new_total_prob = 2
                 if new_total_prob <= 1:
                     print('Pinnacle: Считаю сумму ставки для второго плеча')
-                    bet_sum = round(((ggbet_sum * ggbet_cf) / cf_now) / exchange_rate)
+                    bet_sum = round(((ggbet_sum * ggbet_cf * ggbet_exchange_rate) / cf_now) / exchange_rate)
                     print('Pinnacle: Сумма ставки -', bet_sum)
                     self.do_bet_by_sum(bet_sum)
                     ##### ТЕТСОВАЯ ЗОНА #####
@@ -724,7 +727,7 @@ class pinnacleDriver(QObject):
         else:
             income_now = ((cf_now * ggbet_cf) / (cf_now + ggbet_cf)) * 100
             if income_now >= (100 - loose_max):
-                bet_sum = round(((ggbet_sum * ggbet_cf) / cf_now) / exchange_rate)
+                bet_sum = round(((ggbet_sum * ggbet_cf * ggbet_exchange_rate) / cf_now) / exchange_rate)
                 self.do_bet_by_sum(bet_sum)
                 ##### ТЕТСОВАЯ ЗОНА #####
                 time.sleep(1)

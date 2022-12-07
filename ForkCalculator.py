@@ -55,8 +55,8 @@ def order_handicap_bet(first_bet_name, how_do_handicap):
 def order_of_betting(first_bk, first_cf, first_limit, second_bk, second_cf, second_limit, first_bet_name, second_bet_name, bet_type, how_do_total, how_do_handicap):
     dict_order_bookmakers = {
         'fonbet pinnacle': 'fonbet',         # в последствии он будет заполнятся из настроек
-        'ggbet pinnacle': 'ggbet',
-        'fonbet ggbet': 'unknown',
+        'gg_bet pinnacle': 'gg_bet',
+        'fonbet gg_bet': 'gg_bet',
     }
 
     # правило проставления у тотала
@@ -87,6 +87,7 @@ def order_of_betting(first_bk, first_cf, first_limit, second_bk, second_cf, seco
     bookmakers_pair = ' '.join(bookmakers_list)
     try:
         who_is_first = dict_order_bookmakers[bookmakers_pair]
+        print('Первая контора будет - ', who_is_first)
     except:
         return None, None, None, None, None, None
     if who_is_first == first_bk:
